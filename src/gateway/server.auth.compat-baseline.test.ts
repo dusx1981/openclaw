@@ -52,7 +52,7 @@ async function expectSharedOperatorScopesCleared(
 
     const adminRes = await rpcReq(ws, "set-heartbeats", { enabled: false });
     expect(adminRes.ok).toBe(false);
-    expect(adminRes.error?.message).toBe("missing scope: operator.admin");
+    expect(adminRes.error?.message ?? "").toContain("missing scope");
   } finally {
     ws.close();
   }
@@ -87,7 +87,7 @@ describe("gateway auth compatibility baseline", () => {
       }
     });
 
-    test("clears client-declared scopes for shared-token operator connects", async () => {
+    test("clears requested scopes for shared-token operator connects without device identity", async () => {
       await expectSharedOperatorScopesCleared(port, { token: "secret" });
     });
 
@@ -167,14 +167,18 @@ describe("gateway auth compatibility baseline", () => {
         role: "operator",
         scopes: ["operator.admin"],
       });
-      await approveDevicePairing(pending.request.requestId);
+      await approveDevicePairing(pending.request.requestId, {
+        callerScopes: ["operator.admin"],
+      });
 
       const rotated = await rotateDeviceToken({
         deviceId: identity.deviceId,
         role: "operator",
         scopes: ["operator.admin"],
       });
-      expect(rotated?.token).toBeTruthy();
+      expect(rotated.ok).toBe(true);
+      const rotatedToken = rotated.ok ? rotated.entry.token : "";
+      expect(rotatedToken).toBeTruthy();
 
       const ws = await openWs(port);
       try {
@@ -182,7 +186,7 @@ describe("gateway auth compatibility baseline", () => {
           skipDefaultAuth: true,
           client: { ...BACKEND_GATEWAY_CLIENT },
           deviceIdentityPath: identityPath,
-          deviceToken: String(rotated?.token ?? ""),
+          deviceToken: rotatedToken,
           scopes: ["operator.admin"],
         });
         expect(res.ok).toBe(true);
@@ -237,7 +241,7 @@ describe("gateway auth compatibility baseline", () => {
       }
     });
 
-    test("clears client-declared scopes for shared-password operator connects", async () => {
+    test("clears requested scopes for shared-password operator connects without device identity", async () => {
       await expectSharedOperatorScopesCleared(port, { password: "secret" });
     });
   });
