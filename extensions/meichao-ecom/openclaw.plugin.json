@@ -1,0 +1,40 @@
+{
+  "id": "meichao-ecom",
+  "name": "Meichao E-commerce",
+  "description": "美潮龙虾跨境电商数据采集与智能分析系统 - 支持淘宝、Amazon等平台的商品数据获取、搜索和验证",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "postgres": {
+        "type": "object",
+        "properties": {
+          "host": { "type": "string" },
+          "port": { "type": "number" },
+          "database": { "type": "string" },
+          "user": { "type": "string" },
+          "password": { "type": "string" }
+        }
+      },
+      "redis": {
+        "type": "object",
+        "properties": {
+          "host": { "type": "string" },
+          "port": { "type": "number" },
+          "password": { "type": "string" }
+        }
+      },
+      "alertChannels": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["feishu", "email", "webhook"] },
+            "config": { "type": "object" }
+          },
+          "required": ["type", "config"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://openclaw.ai/schemas/meichao-ecom-config.json",
+  "title": "Meichao E-commerce Data Collection Configuration",
+  "description": "Configuration for data collection module with configurable data source fallbacks",
+  "type": "object",
+  "properties": {
+    "default": {
+      "description": "Default data source configuration for all platforms",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Simple data source ID (e.g., 'taobao/official_api')"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "primary": {
+              "type": "string",
+              "description": "Primary data source ID"
+            },
+            "fallbacks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Fallback data source IDs in order of preference"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "platforms": {
+      "type": "object",
+      "description": "Per-platform data source configurations",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Simple data source ID"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "primary": {
+                "type": "string",
+                "description": "Primary data source ID"
+              },
+              "fallbacks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Fallback data source IDs"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "propertyNames": {
+        "enum": ["taobao", "amazon", "douyin", "1688", "shopee", "pinduoduo", "jd", "aliexpress"]
+      }
+    },
+    "settings": {
+      "type": "object",
+      "description": "Global settings for data collection",
+      "properties": {
+        "maxFallbackSources": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum number of fallback sources to try"
+        },
+        "enableStaleCache": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable stale cache fallback when all sources fail"
+        },
+        "staleCacheMaxAge": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 3600000,
+          "description": "Maximum age (ms) for stale cache to be used as fallback"
+        },
+        "circuitBreaker": {
+          "type": "object",
+          "description": "Circuit breaker settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable circuit breaker pattern"
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 5,
+              "description": "Number of consecutive failures before opening circuit"
+            },
+            "openDuration": {
+              "type": "integer",
+              "minimum": 1000,
+              "default": 30000,
+              "description": "Duration (ms) to keep circuit open before retry"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

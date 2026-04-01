@@ -631,6 +631,10 @@
       "types": "./dist/plugin-sdk/llm-task.d.ts",
       "default": "./dist/plugin-sdk/llm-task.js"
     },
+    "./plugin-sdk/meichao-ecom": {
+      "types": "./dist/plugin-sdk/meichao-ecom.d.ts",
+      "default": "./dist/plugin-sdk/meichao-ecom.js"
+    },
     "./plugin-sdk/matrix": {
       "types": "./dist/plugin-sdk/matrix.d.ts",
       "default": "./dist/plugin-sdk/matrix.js"

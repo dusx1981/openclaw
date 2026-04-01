@@ -1,0 +1,76 @@
+{
+  "platform": "taobao",
+  "timestamp": 1774534099018,
+  "timestampISO": "2026-03-26T14:08:19.018Z",
+  "duration": 2,
+  "durationFormatted": "2ms",
+  "stats": {
+    "total": 10,
+    "successes": 10,
+    "failures": 0,
+    "successRate": 100,
+    "perSourceStats": [
+      {
+        "sourceId": "taobao_official_api",
+        "sourceType": "official_api",
+        "total": 10,
+        "successes": 10,
+        "failures": 0,
+        "successRate": 100
+      }
+    ],
+    "failureReasons": []
+  },
+  "degradation": {
+    "totalFallbacks": 0,
+    "paths": [],
+    "events": []
+  },
+  "samples": [
+    {
+      "platform": "taobao",
+      "productId": "068013281587",
+      "title": "淘宝商品 068013281587",
+      "price": 99.99,
+      "currency": "CNY",
+      "source": "taobao_official_api",
+      "collectedAt": 1774534099018
+    },
+    {
+      "platform": "taobao",
+      "productId": "29875469993547",
+      "title": "淘宝商品 29875469993547",
+      "price": 99.99,
+      "currency": "CNY",
+      "source": "taobao_official_api",
+      "collectedAt": 1774534099018
+    },
+    {
+      "platform": "taobao",
+      "productId": "7073628502373",
+      "title": "淘宝商品 7073628502373",
+      "price": 99.99,
+      "currency": "CNY",
+      "source": "taobao_official_api",
+      "collectedAt": 1774534099018
+    },
+    {
+      "platform": "taobao",
+      "productId": "5691178615",
+      "title": "淘宝商品 5691178615",
+      "price": 99.99,
+      "currency": "CNY",
+      "source": "taobao_official_api",
+      "collectedAt": 1774534099018
+    },
+    {
+      "platform": "taobao",
+      "productId": "37504820982913",
+      "title": "淘宝商品 37504820982913",
+      "price": 99.99,
+      "currency": "CNY",
+      "source": "taobao_official_api",
+      "collectedAt": 1774534099018
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@openclaw/meichao-ecom",
+  "version": "2026.3.25",
+  "private": true,
+  "description": "美潮龙虾跨境电商数据采集与智能分析系统",
+  "type": "module",
+  "scripts": {
+    "bench": "vitest bench",
+    "bench:filter": "vitest bench --filter 'ValidateFilter|DedupeFilter|FetchFilter'",
+    "bench:pipeline": "vitest bench --filter 'DataPipeline'",
+    "test": "vitest run",
+    "test:chaos": "vitest run --filter chaos",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --filter integration",
+    "test:stress": "vitest run --filter stress",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48",
+    "pg": "^8.13.0",
+    "redis": "^4.7.0"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^8.4.0",
+    "@types/pg": "^8.11.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "testcontainers": "^10.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "commands": [
+      "meichao"
+    ]
+  }
+}
