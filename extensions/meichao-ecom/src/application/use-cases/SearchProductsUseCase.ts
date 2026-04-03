@@ -1,7 +1,7 @@
 import type { PlatformGateway } from "../../domain/ports/PlatformGateway.js";
 import type { SearchOptions } from "../../domain/ports/PlatformGateway.js";
 import type { ProductRepository } from "../../domain/ports/ProductRepository.js";
-import type { ProductData, Platform } from "../../domain/types.js";
+import type { ProductData, Platform, DegradationLevel } from "../../domain/types.js";
 
 export interface SearchProductsUseCaseResult {
   products: ProductData[];
@@ -10,6 +10,7 @@ export interface SearchProductsUseCaseResult {
   pageSize: number;
   source: string;
   latencyMs: number;
+  degradationLevel?: DegradationLevel;
 }
 
 export class SearchProductsUseCase {
@@ -38,6 +39,7 @@ export class SearchProductsUseCase {
         pageSize: result.data.pageSize,
         source: result.source,
         latencyMs: Date.now() - start,
+        degradationLevel: result.degradationLevel,
       };
     }
 

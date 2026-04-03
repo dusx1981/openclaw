@@ -1,9 +1,10 @@
-import type { FetchResult, ProductData, Platform } from "../types.js";
+import type { FetchResult, ProductData, Platform, DegradationConfig } from "../types.js";
 
 export interface FetchOptions {
   useCache?: boolean;
   preferredSource?: string;
   timeoutMs?: number;
+  degradation?: DegradationConfig;
 }
 
 export interface SearchOptions extends FetchOptions {

@@ -1,12 +1,5 @@
-import type {
-  Platform,
-  CircuitBreakerConfig,
-  CooldownSettings,
-  HealthProbeConfig,
-  DEFAULT_CIRCUIT_BREAKER_CONFIG,
-  DEFAULT_COOLDOWN_SETTINGS,
-  DEFAULT_HEALTH_PROBE_CONFIG,
-} from "./types.js";
+import type { Platform, CircuitBreakerConfig, HealthProbeConfig } from "./types.js";
+import { DEFAULT_CIRCUIT_BREAKER_CONFIG, DEFAULT_HEALTH_PROBE_CONFIG } from "./types.js";
 
 export type DataSourceType = "official_api" | "third_party_api" | "skill_crawler";
 
@@ -24,7 +17,6 @@ export interface DataCollectionSettings {
   enableStaleCache?: boolean;
   staleCacheMaxAge?: number;
   circuitBreaker?: Partial<CircuitBreakerConfig>;
-  cooldown?: Partial<CooldownSettings>;
   healthProbe?: Partial<HealthProbeConfig>;
 }
 
@@ -35,36 +27,16 @@ export interface DataCollectionConfig {
 }
 
 export const DEFAULT_DATA_COLLECTION_SETTINGS: Required<
-  Omit<DataCollectionSettings, "circuitBreaker" | "cooldown" | "healthProbe">
+  Omit<DataCollectionSettings, "circuitBreaker" | "healthProbe">
 > & {
   circuitBreaker: CircuitBreakerConfig;
-  cooldown: CooldownSettings;
   healthProbe: HealthProbeConfig;
 } = {
   maxFallbackSources: 3,
   enableStaleCache: true,
   staleCacheMaxAge: 3600000,
-  circuitBreaker: {
-    enabled: true,
-    failureThreshold: 5,
-    openDuration: 30000,
-    halfOpenMaxCalls: 1,
-    successThreshold: 3,
-  },
-  cooldown: {
-    baseMinutes: 5,
-    maxMinutes: 60,
-    severeMultiplier: 12,
-    probeWindowMinutes: 2,
-    probeMinIntervalSeconds: 30,
-  },
-  healthProbe: {
-    interval: 60000,
-    initialDelay: 5000,
-    timeout: 10000,
-    unhealthyThreshold: 3,
-    recoveryThreshold: 2,
-  },
+  circuitBreaker: DEFAULT_CIRCUIT_BREAKER_CONFIG,
+  healthProbe: DEFAULT_HEALTH_PROBE_CONFIG,
 };
 
 export function resolvePrimaryDataSource(config?: PlatformDataSourceConfig): string | undefined {

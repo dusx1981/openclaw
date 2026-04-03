@@ -23,10 +23,18 @@
   "devDependencies": {
     "@faker-js/faker": "^8.4.0",
     "@types/pg": "^8.11.0",
-    "@vitest/coverage-v8": "^1.0.0",
-    "testcontainers": "^10.0.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "openclaw": "workspace:*",
     "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
+    "vitest": "^4.1.2"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.3.26"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
   },
   "openclaw": {
     "extensions": [

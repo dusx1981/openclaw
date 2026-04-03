@@ -1,19 +1,10 @@
-import type {
-  PlatformDataSourceConfig,
-  DataCollectionSettings,
-} from "../../domain/data-source-config.js";
 import type { FetchOptions, SearchOptions } from "../../domain/ports/PlatformGateway.js";
 import type { FetchResult, ProductData } from "../../domain/types.js";
 import { DataSource } from "../../domain/value-objects/DataSource.js";
 import { BasePlatformAdapter, type AdapterConfig } from "./BasePlatformAdapter.js";
 
-export interface AmazonAdapterConfig {
-  sourceConfig?: PlatformDataSourceConfig;
-  settings?: DataCollectionSettings;
-}
-
 export class AmazonAdapter extends BasePlatformAdapter {
-  static create(config?: AmazonAdapterConfig): AmazonAdapter {
+  static create(): AmazonAdapter {
     const dataSources = [
       DataSource.create({
         id: "amazon_sp_api",
@@ -43,8 +34,6 @@ export class AmazonAdapter extends BasePlatformAdapter {
       defaultTimeoutMs: 15000,
       retryCount: 3,
       retryDelayMs: 1000,
-      sourceConfig: config?.sourceConfig,
-      settings: config?.settings,
     };
 
     return new AmazonAdapter(adapterConfig);
@@ -66,8 +55,12 @@ export class AmazonAdapter extends BasePlatformAdapter {
           return this.doFetchProduct(platformId, source.id, options);
         },
         {
-          preferredSource: options?.preferredSource,
-          maxSources: 2,
+          preferredSource: options?.preferredSource ?? options?.degradation?.preferredSource,
+          maxSources: options?.degradation?.maxSources ?? 2,
+          preset: options?.degradation?.preset,
+          skipTypes: options?.degradation?.skipTypes,
+          allowCrawler: options?.degradation?.allowCrawler,
+          allowOpenSearch: options?.degradation?.allowOpenSearch,
           onSourceFailure: (sourceId, error) => {
             console.warn(`[AmazonAdapter] Source ${sourceId} failed: ${error.message}`);
           },
@@ -107,22 +100,39 @@ export class AmazonAdapter extends BasePlatformAdapter {
     FetchResult<{ products: ProductData[]; total: number; page: number; pageSize: number }>
   > {
     const start = Date.now();
-    const source = this.getDataSource(options?.preferredSource);
-
-    if (!source) {
-      return this.createErrorResult("No available data source", "none", Date.now() - start);
-    }
 
     try {
-      const result = await this.withRetry(async () => {
-        return this.doSearchProducts(keyword, options);
-      });
+      const result = await this.fetchWithFailover(
+        async (source) => {
+          return this.doSearchProducts(keyword, options);
+        },
+        {
+          preferredSource: options?.preferredSource ?? options?.degradation?.preferredSource,
+          maxSources: options?.degradation?.maxSources ?? 2,
+          preset: options?.degradation?.preset,
+          skipTypes: options?.degradation?.skipTypes,
+          allowCrawler: options?.degradation?.allowCrawler,
+          allowOpenSearch: options?.degradation?.allowOpenSearch,
+          onSourceFailure: (sourceId, error) => {
+            console.warn(`[AmazonAdapter] Search source ${sourceId} failed: ${error.message}`);
+          },
+        },
+      );
 
-      return this.createSuccessResult(result, source.id, Date.now() - start, false);
+      return {
+        success: true,
+        data: result.data,
+        source: result.source,
+        latencyMs: result.totalLatencyMs,
+        cached: false,
+        degradationLevel: result.degradationLevel,
+        attempts: result.attempts,
+        isDegraded: result.degradationLevel === "fallback_source",
+      };
     } catch (error) {
       return this.createErrorResult(
         error instanceof Error ? error.message : "Unknown error",
-        source.id,
+        "none",
         Date.now() - start,
       );
     }
@@ -133,33 +143,17 @@ export class AmazonAdapter extends BasePlatformAdapter {
     sourceId: string,
     options?: FetchOptions,
   ): Promise<ProductData> {
-    return {
-      platform: "amazon",
-      platformId,
-      title: `Amazon Product ${platformId}`,
-      sourceUrl: `https://www.amazon.com/dp/${platformId}`,
-      price: 29.99,
-      currency: "USD",
-      sales: 500,
-      salesPeriod: "month",
-      status: "active",
-      priority: "P1",
-      isTrending: false,
-    };
+    throw new Error(
+      "Amazon API client not implemented. Configure amazon_sp_api or amazon_product_api data source.",
+    );
   }
 
   private async doSearchProducts(
     keyword: string,
     options?: SearchOptions,
   ): Promise<{ products: ProductData[]; total: number; page: number; pageSize: number }> {
-    const pageSize = options?.pageSize ?? 20;
-    const page = options?.page ?? 1;
-
-    return {
-      products: [],
-      total: 0,
-      page,
-      pageSize,
-    };
+    throw new Error(
+      "Amazon API client not implemented. Configure amazon_sp_api or amazon_product_api data source.",
+    );
   }
 }

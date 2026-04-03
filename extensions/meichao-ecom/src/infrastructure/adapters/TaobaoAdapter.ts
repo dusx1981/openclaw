@@ -1,24 +1,19 @@
-import type {
-  PlatformDataSourceConfig,
-  DataCollectionSettings,
-} from "../../domain/data-source-config.js";
 import type { FetchOptions, SearchOptions } from "../../domain/ports/PlatformGateway.js";
 import type { FetchResult, ProductData } from "../../domain/types.js";
 import { DataSource } from "../../domain/value-objects/DataSource.js";
 import { TaobaoApiClient, TaobaoApiError } from "../api/taobao/index.js";
 import { TaobaoProductApi } from "../api/taobao/TaobaoProductApi.js";
+import type { ProductSearchClient } from "../search/ProductSearchClient.js";
+import { createProductSearchClient } from "../search/ProductSearchRegistry.js";
+import type { ProductSearchItem } from "../search/types.js";
 import { BasePlatformAdapter, type AdapterConfig } from "./BasePlatformAdapter.js";
-
-export interface TaobaoAdapterConfig {
-  sourceConfig?: PlatformDataSourceConfig;
-  settings?: DataCollectionSettings;
-}
 
 export class TaobaoAdapter extends BasePlatformAdapter {
   private apiClient: TaobaoApiClient;
   private productApi: TaobaoProductApi;
+  private searchClient: ProductSearchClient;
 
-  static create(config?: TaobaoAdapterConfig): TaobaoAdapter {
+  static create(): TaobaoAdapter {
     const dataSources = [
       DataSource.create({
         id: "taobao_official_api",
@@ -50,6 +45,16 @@ export class TaobaoAdapter extends BasePlatformAdapter {
         usedQuota: 0,
         isAvailable: true,
       }),
+      DataSource.create({
+        id: "taobao_open_search",
+        platform: "taobao",
+        type: "open_search",
+        priority: 4,
+        costPerCall: 0,
+        dailyQuota: 1000,
+        usedQuota: 0,
+        isAvailable: true,
+      }),
     ];
 
     const adapterConfig: AdapterConfig = {
@@ -58,8 +63,6 @@ export class TaobaoAdapter extends BasePlatformAdapter {
       defaultTimeoutMs: 10000,
       retryCount: 3,
       retryDelayMs: 1000,
-      sourceConfig: config?.sourceConfig,
-      settings: config?.settings,
     };
 
     return new TaobaoAdapter(adapterConfig);
@@ -76,6 +79,8 @@ export class TaobaoAdapter extends BasePlatformAdapter {
       this.apiClient = null as unknown as TaobaoApiClient;
       this.productApi = null as unknown as TaobaoProductApi;
     }
+
+    this.searchClient = createProductSearchClient();
   }
 
   getPlatform(): "taobao" {
@@ -94,8 +99,12 @@ export class TaobaoAdapter extends BasePlatformAdapter {
           return this.doFetchProduct(platformId, source.id, options);
         },
         {
-          preferredSource: options?.preferredSource,
-          maxSources: 3,
+          preferredSource: options?.preferredSource ?? options?.degradation?.preferredSource,
+          maxSources: options?.degradation?.maxSources ?? 3,
+          preset: options?.degradation?.preset,
+          skipTypes: options?.degradation?.skipTypes,
+          allowCrawler: options?.degradation?.allowCrawler,
+          allowOpenSearch: options?.degradation?.allowOpenSearch,
           onSourceFailure: (sourceId, error) => {
             console.warn(`[TaobaoAdapter] Source ${sourceId} failed: ${error.message}`);
           },
@@ -135,22 +144,39 @@ export class TaobaoAdapter extends BasePlatformAdapter {
     FetchResult<{ products: ProductData[]; total: number; page: number; pageSize: number }>
   > {
     const start = Date.now();
-    const source = this.getDataSource(options?.preferredSource);
-
-    if (!source) {
-      return this.createErrorResult("No available data source", "none", Date.now() - start);
-    }
 
     try {
-      const result = await this.withRetry(async () => {
-        return this.doSearchProducts(keyword, options);
-      });
+      const result = await this.fetchWithFailover(
+        async (source) => {
+          return this.doSearchProducts(keyword, source.id, options);
+        },
+        {
+          preferredSource: options?.preferredSource ?? options?.degradation?.preferredSource,
+          maxSources: options?.degradation?.maxSources ?? 4,
+          preset: options?.degradation?.preset,
+          skipTypes: options?.degradation?.skipTypes,
+          allowCrawler: options?.degradation?.allowCrawler,
+          allowOpenSearch: options?.degradation?.allowOpenSearch,
+          onSourceFailure: (sourceId, error) => {
+            console.warn(`[TaobaoAdapter] Search source ${sourceId} failed: ${error.message}`);
+          },
+        },
+      );
 
-      return this.createSuccessResult(result, source.id, Date.now() - start, false);
+      return {
+        success: true,
+        data: result.data,
+        source: result.source,
+        latencyMs: result.totalLatencyMs,
+        cached: false,
+        degradationLevel: result.degradationLevel,
+        attempts: result.attempts,
+        isDegraded: result.degradationLevel === "fallback_source",
+      };
     } catch (error) {
       return this.createErrorResult(
         error instanceof Error ? error.message : "Unknown error",
-        source.id,
+        "none",
         Date.now() - start,
       );
     }
@@ -161,9 +187,13 @@ export class TaobaoAdapter extends BasePlatformAdapter {
     sourceId: string,
     options?: FetchOptions,
   ): Promise<ProductData> {
+    if (sourceId === "taobao_open_search") {
+      throw new Error("Open search does not support single product fetch");
+    }
+
     if (!this.productApi) {
       throw new Error(
-        "Taobao API client not initialized. Set TAOBAO_APP_KEY and TAOBAO_APP_SECRET environment variables.",
+        "Taobao API client not configured. Set TAOBAO_APP_KEY and TAOBAO_APP_SECRET environment variables.",
       );
     }
 
@@ -178,11 +208,16 @@ export class TaobaoAdapter extends BasePlatformAdapter {
 
   private async doSearchProducts(
     keyword: string,
+    sourceId: string,
     options?: SearchOptions,
   ): Promise<{ products: ProductData[]; total: number; page: number; pageSize: number }> {
+    if (sourceId === "taobao_open_search") {
+      return this.doSearchViaOpenSearch(keyword, options);
+    }
+
     if (!this.productApi) {
       throw new Error(
-        "Taobao API client not initialized. Set TAOBAO_APP_KEY and TAOBAO_APP_SECRET environment variables.",
+        "Taobao API client not configured. Set TAOBAO_APP_KEY and TAOBAO_APP_SECRET environment variables.",
       );
     }
 
@@ -197,5 +232,57 @@ export class TaobaoAdapter extends BasePlatformAdapter {
       page: result.page,
       pageSize,
     };
+  }
+
+  private async doSearchViaOpenSearch(
+    keyword: string,
+    options?: SearchOptions,
+  ): Promise<{ products: ProductData[]; total: number; page: number; pageSize: number }> {
+    const page = options?.page ?? 1;
+    const pageSize = options?.pageSize ?? 20;
+
+    const searchResult = await this.searchClient.search({
+      keyword,
+      platform: "taobao",
+      page,
+      pageSize,
+    });
+
+    const products = searchResult.items.map((item) => this.transformSearchResult(item));
+
+    return {
+      products,
+      total: searchResult.total,
+      page: searchResult.page,
+      pageSize: searchResult.pageSize,
+    };
+  }
+
+  private transformSearchResult(item: ProductSearchItem): ProductData {
+    return {
+      platform: item.platform ?? "taobao",
+      platformId: item.platformId ?? this.extractIdFromUrl(item.url),
+      title: item.title,
+      sourceUrl: item.url,
+      price: item.price ?? 0,
+      currency: item.currency ?? "CNY",
+      sales: 0,
+      salesPeriod: "month",
+      status: "active",
+      priority: "P1",
+      isTrending: false,
+    };
+  }
+
+  private extractIdFromUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      const match = parsed.pathname.match(/\/item\/(\d+)/);
+      if (match) return match[1];
+
+      const idParam = parsed.searchParams.get("id");
+      if (idParam) return idParam;
+    } catch {}
+    return "";
   }
 }

@@ -14,7 +14,7 @@ export type ProductPriority = "P0" | "P1" | "P2";
 
 export type SalesPeriod = "day" | "week" | "month";
 
-export type DataSourceType = "official_api" | "third_party_api" | "skill_crawler";
+export type DataSourceType = "official_api" | "third_party_api" | "skill_crawler" | "open_search";
 
 export interface ProductData {
   platform: Platform;
@@ -132,6 +132,27 @@ export interface FetchWithFailoverOptions {
   maxSources?: number;
   skipSources?: string[];
   onSourceFailure?: (sourceId: string, error: Error) => void;
+  preset?: DegradationPreset;
+  skipTypes?: DataSourceType[];
+  allowCrawler?: boolean;
+  allowOpenSearch?: boolean;
+}
+
+export type DegradationPreset =
+  | "standard"
+  | "cost-optimized"
+  | "speed-optimized"
+  | "reliability-first";
+
+export interface DegradationConfig {
+  preset?: DegradationPreset;
+  skipTypes?: DataSourceType[];
+  maxSources?: number;
+  allowCrawler?: boolean;
+  allowOpenSearch?: boolean;
+  preferredSource?: string;
+  customOrder?: DataSourceType[];
+  skipSources?: string[];
 }
 
 export interface FailoverFetchResult<T> {
@@ -164,24 +185,6 @@ export interface CircuitBreakerConfig {
   successThreshold: number;
 }
 
-export interface CooldownSettings {
-  baseMinutes: number;
-  maxMinutes: number;
-  severeMultiplier: number;
-  probeWindowMinutes: number;
-  probeMinIntervalSeconds: number;
-}
-
-export interface SourceCooldownState {
-  sourceId: string;
-  errorCount: number;
-  lastErrorAt?: number;
-  lastErrorReason?: DataSourceFailoverReason;
-  cooldownUntil?: number;
-  lastSuccessAt?: number;
-  lastProbeAt?: number;
-}
-
 export interface HealthProbeConfig {
   interval: number;
   initialDelay: number;
@@ -191,8 +194,6 @@ export interface HealthProbeConfig {
 }
 
 export type DegradationDecision =
-  | "skip_cooldown_source"
-  | "probe_source"
   | "source_failed"
   | "source_succeeded"
   | "circuit_open"
@@ -267,14 +268,6 @@ export const DEFAULT_CIRCUIT_BREAKER_CONFIG: CircuitBreakerConfig = {
   openDuration: 30000,
   halfOpenMaxCalls: 1,
   successThreshold: 3,
-};
-
-export const DEFAULT_COOLDOWN_SETTINGS: CooldownSettings = {
-  baseMinutes: 5,
-  maxMinutes: 60,
-  severeMultiplier: 12,
-  probeWindowMinutes: 2,
-  probeMinIntervalSeconds: 30,
 };
 
 export const DEFAULT_HEALTH_PROBE_CONFIG: HealthProbeConfig = {

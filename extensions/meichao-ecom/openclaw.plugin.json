@@ -24,6 +24,19 @@
           "password": { "type": "string" }
         }
       },
+      "openSearch": {
+        "type": "object",
+        "properties": {
+          "bingApiKey": {
+            "type": "string",
+            "description": "Bing Search API key for product search fallback"
+          },
+          "bingCustomConfigId": {
+            "type": "string",
+            "description": "Bing Custom Search configuration ID"
+          }
+        }
+      },
       "alertChannels": {
         "type": "array",
         "items": {

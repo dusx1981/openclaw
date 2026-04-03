@@ -1,5 +1,5 @@
 import type { DataSource, FetchResult, ProductData } from "../domain/types.js";
-import { TaobaoAdapter } from "../infrastructure/adapters/TaobaoAdapter.js";
+import { PlatformRegistry } from "../infrastructure/registry/PlatformRegistry.js";
 import { DegradationTracker } from "./DegradationTracker.js";
 import {
   PlatformValidator,
@@ -10,20 +10,26 @@ import { SampleCollector } from "./SampleCollector.js";
 import { StatsCollector, categorizeFailure } from "./ValidationStats.js";
 
 export class TaobaoValidator extends PlatformValidator {
-  private adapter: TaobaoAdapter;
+  private adapter: import("../infrastructure/adapters/TaobaoAdapter.js").TaobaoAdapter | null;
   private statsCollector: StatsCollector;
   private sampleCollector: SampleCollector;
   private degradationTracker: DegradationTracker;
 
   constructor() {
     super("taobao");
-    this.adapter = TaobaoAdapter.create();
+    this.adapter = PlatformRegistry.get("taobao") as
+      | import("../infrastructure/adapters/TaobaoAdapter.js").TaobaoAdapter
+      | null;
     this.statsCollector = new StatsCollector();
     this.sampleCollector = new SampleCollector(5);
     this.degradationTracker = new DegradationTracker();
   }
 
   async validate(options: ValidationOptions): Promise<ValidationResult> {
+    if (!this.adapter) {
+      throw new Error("Taobao platform not initialized. Run bootstrap first.");
+    }
+
     const startTime = Date.now();
     this.statsCollector.reset();
     this.sampleCollector.reset();
@@ -35,7 +41,7 @@ export class TaobaoValidator extends PlatformValidator {
     for (const productId of productIds) {
       try {
         const result = await this.adapter.fetchWithFailover(async (_source: DataSource) => {
-          return this.adapter.fetchProduct(productId);
+          return this.adapter!.fetchProduct(productId);
         });
 
         const fetchResult = result.data as FetchResult<ProductData>;
@@ -80,6 +86,7 @@ export class TaobaoValidator extends PlatformValidator {
     if (sourceId.includes("official")) return "official_api";
     if (sourceId.includes("third")) return "third_party_api";
     if (sourceId.includes("crawler")) return "skill_crawler";
+    if (sourceId.includes("open_search")) return "open_search";
     return "unknown";
   }
 

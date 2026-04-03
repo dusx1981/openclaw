@@ -1,7 +1,5 @@
 import {
-  type PlatformDataSourceConfig,
   type DataCollectionSettings,
-  buildDataSourceCandidates,
   DEFAULT_DATA_COLLECTION_SETTINGS,
 } from "../../domain/data-source-config.js";
 import type {
@@ -18,13 +16,15 @@ import type {
   FailoverFetchResult,
   SourceAttempt,
   DegradationLevel,
-  DataSourceFailoverReason,
 } from "../../domain/types.js";
+import type { DataSource as DataSourceEntity } from "../../domain/types.js";
+import type { DataSource as DataSourceVO } from "../../domain/value-objects/DataSource.js";
 import { DataSource } from "../../domain/value-objects/DataSource.js";
-import { CircuitBreaker } from "../circuit-breaker/CircuitBreaker.js";
 import { classifyError } from "../classification/ErrorClassifier.js";
-import { InMemoryCooldownManager, type CooldownManager } from "../cooldown/CooldownManager.js";
-import { InMemoryDecisionLogger, type DecisionLogger } from "../logging/DecisionLogger.js";
+import { DegradationPath, DegradationExecutor, CooldownManager } from "../degradation/index.js";
+import type { DegradationOptions, DegradationResult } from "../degradation/types.js";
+import { InMemoryDecisionLogger } from "../logging/DecisionLogger.js";
+import { createPlatformRetryRunner } from "../retry-policy.js";
 
 export interface AdapterConfig {
   platform: Platform;
@@ -32,31 +32,41 @@ export interface AdapterConfig {
   defaultTimeoutMs: number;
   retryCount: number;
   retryDelayMs: number;
-  sourceConfig?: PlatformDataSourceConfig;
   settings?: DataCollectionSettings;
 }
 
 export abstract class BasePlatformAdapter implements PlatformGateway {
   protected config: AdapterConfig;
   protected dataSources: Map<string, DataSource> = new Map();
-  protected sourceConfig?: PlatformDataSourceConfig;
   protected settings: DataCollectionSettings;
-  protected circuitBreakers: Map<string, CircuitBreaker> = new Map();
+  protected degradationExecutor: DegradationExecutor;
   protected cooldownManager: CooldownManager;
-  protected decisionLogger: DecisionLogger;
-  protected runId: string;
+  protected decisionLogger: InMemoryDecisionLogger;
 
   constructor(config: AdapterConfig) {
     this.config = config;
-    this.sourceConfig = config.sourceConfig;
     this.settings = { ...DEFAULT_DATA_COLLECTION_SETTINGS, ...config.settings };
+
     for (const ds of config.dataSources) {
       this.dataSources.set(ds.id, ds);
-      this.circuitBreakers.set(ds.id, new CircuitBreaker(this.settings.circuitBreaker));
     }
-    this.cooldownManager = new InMemoryCooldownManager(this.settings.cooldown);
+
+    this.cooldownManager = new CooldownManager();
     this.decisionLogger = new InMemoryDecisionLogger();
-    this.runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.degradationExecutor = new DegradationExecutor({
+      retryRunnerFactory: (platform) => createPlatformRetryRunner(platform),
+      circuitBreakerConfig: {
+        enabled: this.settings.circuitBreaker?.enabled ?? true,
+        failureThreshold: this.settings.circuitBreaker?.failureThreshold ?? 5,
+        openDuration: this.settings.circuitBreaker?.openDuration ?? 60000,
+        halfOpenMaxCalls: this.settings.circuitBreaker?.halfOpenMaxCalls ?? 10,
+        successThreshold: this.settings.circuitBreaker?.successThreshold ?? 3,
+      },
+      errorClassifier: (error, platform) => classifyError(error, platform),
+      cooldownManager: this.cooldownManager,
+      decisionLogger: this.decisionLogger,
+    });
   }
 
   abstract getPlatform(): Platform;
@@ -116,28 +126,6 @@ export abstract class BasePlatformAdapter implements PlatformGateway {
     return sources[0] ?? null;
   }
 
-  protected async withRetry<T>(fn: () => Promise<T>, retryCount?: number): Promise<T> {
-    const maxRetries = retryCount ?? this.config.retryCount;
-    let lastError: Error | null = null;
-
-    for (let i = 0; i <= maxRetries; i++) {
-      try {
-        return await fn();
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        if (i < maxRetries) {
-          await this.delay(this.config.retryDelayMs * Math.pow(2, i));
-        }
-      }
-    }
-
-    throw lastError ?? new Error("Unknown error after retries");
-  }
-
-  protected delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   protected createSuccessResult<T>(
     data: T,
     source: string,
@@ -183,10 +171,6 @@ export abstract class BasePlatformAdapter implements PlatformGateway {
     return true;
   }
 
-  setSourceConfig(config: PlatformDataSourceConfig): void {
-    this.sourceConfig = config;
-  }
-
   setSettings(settings: DataCollectionSettings): void {
     this.settings = { ...DEFAULT_DATA_COLLECTION_SETTINGS, ...settings };
   }
@@ -197,223 +181,73 @@ export abstract class BasePlatformAdapter implements PlatformGateway {
       .sort((a, b) => a.priority - b.priority);
   }
 
-  protected getConfiguredSourceCandidates(options?: FetchWithFailoverOptions): DataSource[] {
-    let candidateIds: string[];
+  protected buildDegradationPath(): DegradationPath {
+    const sourceEntities: DataSourceEntity[] = Array.from(this.dataSources.values()).map((ds) => ({
+      id: ds.id,
+      platform: ds.platform,
+      type: ds.type,
+      priority: ds.priority,
+      costPerCall: ds.costPerCall,
+      dailyQuota: ds.dailyQuota,
+      usedQuota: ds.usedQuota,
+      isAvailable: ds.isAvailable,
+      lastError: ds.lastError,
+      lastSuccessAt: ds.lastSuccessAt,
+    }));
 
-    if (this.sourceConfig) {
-      candidateIds = buildDataSourceCandidates(
-        this.sourceConfig,
-        undefined,
-        this.settings.maxFallbackSources,
-      );
-    } else {
-      candidateIds = this.getAvailableSources().map((ds) => ds.id);
-    }
-
-    const preferredSource = options?.preferredSource ?? this.getPrimarySourceId();
-    if (preferredSource) {
-      candidateIds = candidateIds.filter((id) => id !== preferredSource);
-      candidateIds.unshift(preferredSource);
-    }
-
-    return candidateIds
-      .map((id) => this.dataSources.get(id))
-      .filter((ds): ds is DataSource => ds != null && ds.isAvailable && ds.hasRemainingQuota());
+    return new DegradationPath(this.getPlatform(), sourceEntities);
   }
 
-  protected recordSourceFailure(sourceId: string, error: string): void {
-    this.updateDataSource(sourceId, {
-      lastError: error,
-    });
+  protected buildDegradationOptions(options?: FetchWithFailoverOptions): DegradationOptions {
+    return {
+      preferredSource: options?.preferredSource ?? this.getPrimarySourceId(),
+      maxSources: options?.maxSources ?? this.settings.maxFallbackSources,
+      skipSources: options?.skipSources,
+      onSourceFailure: options?.onSourceFailure,
+      preset: options?.preset,
+      skipTypes: options?.skipTypes,
+      allowCrawler: options?.allowCrawler ?? false,
+      allowOpenSearch: options?.allowOpenSearch,
+    };
   }
 
   async fetchWithFailover<T>(
     fn: (source: DataSource) => Promise<T>,
     options?: FetchWithFailoverOptions,
   ): Promise<FailoverFetchResult<T>> {
-    const attempts: SourceAttempt[] = [];
-    const start = Date.now();
+    const path = this.buildDegradationPath();
+    const degradationOptions = this.buildDegradationOptions(options);
 
-    let sources = this.getConfiguredSourceCandidates(options);
-
-    if (options?.skipSources?.length) {
-      sources = sources.filter((s) => !options.skipSources!.includes(s.id));
-    }
-
-    const maxSources = options?.maxSources ?? this.settings.maxFallbackSources;
-    sources = sources.slice(0, maxSources);
-
-    const configuredPrimaryId = this.getPrimarySourceId();
-    const primarySourceId = options?.preferredSource ?? configuredPrimaryId ?? sources[0]?.id;
-
-    let lastError: Error | null = null;
-
-    for (const source of sources) {
-      const circuitBreaker = this.circuitBreakers.get(source.id);
-      if (circuitBreaker && !circuitBreaker.canExecute()) {
-        this.decisionLogger.log({
-          event: "degradation_decision",
-          decision: "circuit_open",
-          runId: this.runId,
-          timestamp: Date.now(),
-          platform: this.getPlatform(),
-          productId: "",
-          source: {
-            id: source.id,
-            type: source.type,
-            priority: source.priority,
-          },
-          circuitBreaker: {
-            state: circuitBreaker.getState(),
-            failureCount: circuitBreaker.getFailureCount(),
-          },
-          latencyMs: 0,
-        });
-        continue;
-      }
-
-      const isPrimary = source.id === primarySourceId;
-      const hasFallback = sources.some((s) => s.id !== source.id);
-
-      if (this.cooldownManager.isInCooldown(source.id)) {
-        if (this.cooldownManager.canProbe(source.id, hasFallback, isPrimary)) {
-          this.cooldownManager.recordProbeAttempt(source.id);
-          this.decisionLogger.log({
-            event: "degradation_decision",
-            decision: "probe_source",
-            runId: this.runId,
-            timestamp: Date.now(),
-            platform: this.getPlatform(),
-            productId: "",
-            source: {
-              id: source.id,
-              type: source.type,
-              priority: source.priority,
-            },
-            cooldown: {
-              errorCount: this.cooldownManager.getCooldownState(source.id).errorCount,
-              cooldownUntil: this.cooldownManager.getCooldownState(source.id).cooldownUntil ?? 0,
-              willProbe: true,
-            },
-            latencyMs: 0,
-          });
-        } else {
-          this.decisionLogger.log({
-            event: "degradation_decision",
-            decision: "skip_cooldown_source",
-            runId: this.runId,
-            timestamp: Date.now(),
-            platform: this.getPlatform(),
-            productId: "",
-            source: {
-              id: source.id,
-              type: source.type,
-              priority: source.priority,
-            },
-            cooldown: {
-              errorCount: this.cooldownManager.getCooldownState(source.id).errorCount,
-              cooldownUntil: this.cooldownManager.getCooldownState(source.id).cooldownUntil ?? 0,
-              willProbe: false,
-            },
-            latencyMs: 0,
-          });
-          continue;
+    const result = await this.degradationExecutor.execute(
+      path,
+      async (sourceEntity) => {
+        const ds = this.dataSources.get(sourceEntity.id);
+        if (!ds) {
+          throw new Error(`DataSource ${sourceEntity.id} not found`);
         }
-      }
+        return fn(ds);
+      },
+      degradationOptions,
+    );
 
-      const attemptStart = Date.now();
+    return this.convertToFailoverResult(result);
+  }
 
-      try {
-        const data = await this.withRetry(() => fn(source));
-
-        attempts.push({
-          sourceId: source.id,
-          success: true,
-          latencyMs: Date.now() - attemptStart,
-        });
-
-        circuitBreaker?.recordSuccess();
-        this.cooldownManager.recordSuccess(source.id);
-        this.updateDataSource(source.id, source.markAvailable().toData());
-
-        this.decisionLogger.log({
-          event: "degradation_decision",
-          decision: "source_succeeded",
-          runId: this.runId,
-          timestamp: Date.now(),
-          platform: this.getPlatform(),
-          productId: "",
-          source: {
-            id: source.id,
-            type: source.type,
-            priority: source.priority,
-          },
-          latencyMs: Date.now() - attemptStart,
-        });
-
-        const degradationLevel: DegradationLevel =
-          source.id === primarySourceId ? "primary_source" : "fallback_source";
-
-        return {
-          data,
-          source: source.id,
-          attempts,
-          totalLatencyMs: Date.now() - start,
-          degradationLevel,
-        };
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-
-        attempts.push({
-          sourceId: source.id,
-          success: false,
-          error: lastError.message,
-          latencyMs: Date.now() - attemptStart,
-        });
-
-        const classified = classifyError(lastError, this.getPlatform());
-        circuitBreaker?.recordFailure();
-        this.cooldownManager.recordError(source.id, classified.reason);
-
-        this.decisionLogger.log({
-          event: "degradation_decision",
-          decision: "source_failed",
-          runId: this.runId,
-          timestamp: Date.now(),
-          platform: this.getPlatform(),
-          productId: "",
-          source: {
-            id: source.id,
-            type: source.type,
-            priority: source.priority,
-          },
-          error: {
-            reason: classified.reason,
-            message: lastError.message,
-          },
-          cooldown: {
-            errorCount: this.cooldownManager.getCooldownState(source.id).errorCount,
-            cooldownUntil: this.cooldownManager.getCooldownState(source.id).cooldownUntil ?? 0,
-            willProbe: false,
-          },
-          latencyMs: Date.now() - attemptStart,
-        });
-
-        options?.onSourceFailure?.(source.id, lastError);
-        this.recordSourceFailure(source.id, lastError.message);
-      }
+  protected convertToFailoverResult<T>(result: DegradationResult<T>): FailoverFetchResult<T> {
+    if (!result.success || !result.data) {
+      throw result.error ?? new Error("All sources failed");
     }
 
-    throw lastError ?? new Error("No available data sources");
+    return {
+      data: result.data,
+      source: result.source?.id ?? "unknown",
+      attempts: result.attempts ?? [],
+      totalLatencyMs: result.latencyMs ?? 0,
+      degradationLevel: result.degradationLevel ?? "primary_source",
+    };
   }
 
   protected getPrimarySourceId(): string | undefined {
-    if (this.sourceConfig) {
-      if (typeof this.sourceConfig === "string") {
-        return this.sourceConfig;
-      }
-      return this.sourceConfig.primary;
-    }
     return undefined;
   }
 }

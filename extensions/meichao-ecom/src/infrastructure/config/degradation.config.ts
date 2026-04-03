@@ -1,13 +1,6 @@
-import type {
-  CircuitBreakerConfig,
-  CooldownSettings,
-  HealthProbeConfig,
-} from "../../domain/types.js";
-import {
-  DEFAULT_CIRCUIT_BREAKER_CONFIG,
-  DEFAULT_COOLDOWN_SETTINGS,
-  DEFAULT_HEALTH_PROBE_CONFIG,
-} from "../../domain/types.js";
+import type { CircuitBreakerConfig, HealthProbeConfig } from "../../domain/types.js";
+import { DEFAULT_CIRCUIT_BREAKER_CONFIG, DEFAULT_HEALTH_PROBE_CONFIG } from "../../domain/types.js";
+import type { CooldownSettings } from "../degradation/types.js";
 
 export interface DegradationConfig {
   circuitBreaker: CircuitBreakerConfig;
@@ -40,25 +33,14 @@ export function loadDegradationConfig(): DegradationConfig {
       ),
     },
     cooldown: {
-      baseMinutes: parseEnvNumber(
-        "DEGRADATION_COOLDOWN_BASE_MINUTES",
-        DEFAULT_COOLDOWN_SETTINGS.baseMinutes,
+      enabled: parseEnvBool("DEGRADATION_COOLDOWN_ENABLED", true),
+      normalDurations: parseEnvArray(
+        "DEGRADATION_COOLDOWN_NORMAL_DURATIONS",
+        [60000, 300000, 900000, 1800000],
       ),
-      maxMinutes: parseEnvNumber(
-        "DEGRADATION_COOLDOWN_MAX_MINUTES",
-        DEFAULT_COOLDOWN_SETTINGS.maxMinutes,
-      ),
-      severeMultiplier: parseEnvNumber(
-        "DEGRADATION_COOLDOWN_SEVERE_MULTIPLIER",
-        DEFAULT_COOLDOWN_SETTINGS.severeMultiplier,
-      ),
-      probeWindowMinutes: parseEnvNumber(
-        "DEGRADATION_COOLDOWN_PROBE_WINDOW_MINUTES",
-        DEFAULT_COOLDOWN_SETTINGS.probeWindowMinutes,
-      ),
-      probeMinIntervalSeconds: parseEnvNumber(
-        "DEGRADATION_COOLDOWN_PROBE_MIN_INTERVAL_SECONDS",
-        DEFAULT_COOLDOWN_SETTINGS.probeMinIntervalSeconds,
+      severeDurations: parseEnvArray(
+        "DEGRADATION_COOLDOWN_SEVERE_DURATIONS",
+        [3600000, 7200000, 14400000, 86400000],
       ),
     },
     healthProbe: {
@@ -99,8 +81,12 @@ function parseEnvNumber(key: string, defaultValue: number): number {
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
-export const DEFAULT_DEGRADATION_CONFIG: DegradationConfig = {
-  circuitBreaker: DEFAULT_CIRCUIT_BREAKER_CONFIG,
-  cooldown: DEFAULT_COOLDOWN_SETTINGS,
-  healthProbe: DEFAULT_HEALTH_PROBE_CONFIG,
-};
+function parseEnvArray(key: string, defaultValue: number[]): number[] {
+  const value = process.env[key];
+  if (value === undefined) return defaultValue;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return defaultValue;
+  }
+}

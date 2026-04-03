@@ -35,10 +35,37 @@ metadata:
 
 获取单个商品的详细数据。返回标题、价格、销量、评分、店铺信息和来源链接。
 
-| 参数        | 描述                            | 必填 |
-| ----------- | ------------------------------- | ---- |
-| `platform`  | 平台名称：`taobao`、`amazon` 等 | 是   |
-| `productId` | 平台特定的商品 ID（见上表）     | 是   |
+**默认跳过爬虫**，只使用官方和第三方 API，保证数据质量。
+
+| 参数          | 描述                            | 必填 |
+| ------------- | ------------------------------- | ---- |
+| `platform`    | 平台名称：`taobao`、`amazon` 等 | 是   |
+| `productId`   | 平台特定的商品 ID（见上表）     | 是   |
+| `degradation` | 降级配置（默认跳过爬虫）        | 否   |
+
+### degradation 参数
+
+控制数据源降级行为，支持预设模板和自定义选项：
+
+| 子参数            | 描述                                                                           |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `preset`          | 预设模板：`standard`、`cost-optimized`、`speed-optimized`、`reliability-first` |
+| `skipTypes`       | 跳过的数据源类型数组：`["skill_crawler", "open_search"]`                       |
+| `maxSources`      | 最大尝试数据源数量（1-4，默认 3）                                              |
+| `allowCrawler`    | 是否允许爬虫数据源（默认 true）                                                |
+| `allowOpenSearch` | 是否允许开放搜索（默认 true）                                                  |
+| `customOrder`     | 自定义数据源类型顺序：`["third_party_api", "official_api"]`                    |
+| `preferredSource` | 优先使用的数据源 ID：`"taobao_official_api"`                                   |
+| `skipSources`     | 跳过的数据源 ID 数组：`["taobao_crawler"]`                                     |
+
+#### 预设模板
+
+| 模板                | 数据源路径                                                   | 适用场景             |
+| ------------------- | ------------------------------------------------------------ | -------------------- |
+| `standard`          | official_api → third_party_api → skill_crawler → open_search | 默认，全路径         |
+| `cost-optimized`    | official_api → skill_crawler → open_search                   | 跳过付费 API，省钱   |
+| `speed-optimized`   | third_party_api → official_api → open_search                 | 优先快速响应源       |
+| `reliability-first` | official_api → third_party_api                               | 只用可靠源，跳过爬虫 |
 
 ### 使用技巧
 
@@ -46,16 +73,60 @@ metadata:
 - **确认平台支持** — 目前只有淘宝和 Amazon 有活跃的适配器
 - **优雅处理缺失商品** — 部分 ID 可能已下架或删除
 - **使用结果中的 `sourceUrl`** — 为用户提供原始商品链接
+- **用 `cost-optimized` 省钱** — 跳过付费的第三方 API
+- **用 `speed-optimized` 加速** — 优先使用响应快的源
+- **用 `reliability-first` 保质量** — 只使用可靠的官方和第三方 API
+
+### 高级用法示例
+
+**自定义降级顺序**：
+
+```json
+{
+  "platform": "taobao",
+  "productId": "12345",
+  "degradation": {
+    "customOrder": ["third_party_api", "official_api"]
+  }
+}
+```
+
+**优先使用特定数据源**：
+
+```json
+{
+  "platform": "taobao",
+  "productId": "12345",
+  "degradation": {
+    "preferredSource": "taobao_third_party"
+  }
+}
+```
+
+**跳过特定数据源**：
+
+```json
+{
+  "platform": "taobao",
+  "productId": "12345",
+  "degradation": {
+    "skipSources": ["taobao_crawler", "taobao_open_search"]
+  }
+}
+```
 
 ## ecom-product-search
 
 按关键词搜索商品。返回标题、价格、销量、评分、店铺名称和来源链接。
 
-| 参数       | 描述                            | 必填 |
-| ---------- | ------------------------------- | ---- |
-| `platform` | 平台名称：`taobao`、`amazon` 等 | 是   |
-| `keyword`  | 搜索关键词或商品名称            | 是   |
-| `limit`    | 最大结果数（默认 50，最大 100） | 否   |
+**默认跳过爬虫**，只使用官方和第三方 API，保证数据质量。
+
+| 参数          | 描述                            | 必填 |
+| ------------- | ------------------------------- | ---- |
+| `platform`    | 平台名称：`taobao`、`amazon` 等 | 是   |
+| `keyword`     | 搜索关键词或商品名称            | 是   |
+| `limit`       | 最大结果数（默认 50，最大 100） | 否   |
+| `degradation` | 降级配置（默认跳过爬虫）        | 否   |
 
 ### 使用技巧
 
@@ -63,6 +134,8 @@ metadata:
 - **合理设置 `limit`** — 快速查询用 20-30，深度调研用 50-100
 - **筛选 `isTrending`** — 爆款商品反映市场需求
 - **跨平台对比** — 用不同的 `platform` 参数多次调用
+- **用 `preset` 优化** — 批量搜索时用 `speed-optimized` 加速
+- **跳过爬虫** — 用 `preset: "reliability-first"` 或 `allowCrawler: false`
 
 ## ecom-validate-platform
 
@@ -97,9 +170,19 @@ metadata:
 4. 数据异常时验证平台健康状态
 
 ```
-ecom-product-search(platform="taobao", keyword="零食", limit=50)
-ecom-product-search(platform="amazon", keyword="snacks", limit=50)
-ecom-validate-platform(platform="taobao", count=10)
+ecom-product-search(
+  platform="taobao",
+  keyword="零食",
+  limit=50,
+  degradation={ preset: "reliability-first" }
+)
+ecom-product-search(
+  platform="amazon",
+  keyword="snacks",
+  limit=50,
+  degradation={ preset: "reliability-first" }
+)
+ecom-product-validate(platform="taobao", count=10)
 ```
 
 ### 单品分析
@@ -110,8 +193,17 @@ ecom-validate-platform(platform="taobao", count=10)
 4. 在其他平台交叉验证
 
 ```
-ecom-product-fetch(platform="taobao", productId="12345")
-ecom-product-search(platform="taobao", keyword="<商品标题关键词>", limit=20)
+ecom-product-fetch(
+  platform="taobao",
+  productId="12345",
+  degradation={ preset: "reliability-first" }
+)
+ecom-product-search(
+  platform="taobao",
+  keyword="<商品标题关键词>",
+  limit=20,
+  degradation={ preset: "reliability-first" }
+)
 ```
 
 ### 平台健康检查
@@ -122,20 +214,130 @@ ecom-product-search(platform="taobao", keyword="<商品标题关键词>", limit=
 4. 健康状态可接受后再执行抓取/搜索
 
 ```
-ecom-validate-platform(count=20)
+ecom-product-validate(count=20)
+```
+
+### 成本优化抓取
+
+跳过付费第三方 API，进一步节省成本：
+
+```
+ecom-product-fetch(
+  platform="taobao",
+  productId="12345",
+  degradation={ preset: "cost-optimized" }
+)
+```
+
+### 快速搜索
+
+优先使用响应快的数据源：
+
+```
+ecom-product-search(
+  platform="taobao",
+  keyword="爆款",
+  limit=20,
+  degradation={ preset: "speed-optimized" }
+)
+```
+
+### 启用爬虫（不推荐）
+
+如需启用爬虫，显式设置 `allowCrawler: true`：
+
+```
+ecom-product-search(
+  platform="taobao",
+  keyword="零食",
+  degradation={ allowCrawler: true }
+)
 ```
 
 ## 降级机制
 
-系统使用多个数据源，支持自动降级：
+系统使用多个数据源，支持自动降级和可配置的降级策略。
 
-| 数据源类型      | 优先级 | 特点                   |
-| --------------- | ------ | ---------------------- |
-| official_api    | 1      | 最可靠，有配额限制     |
-| third_party_api | 2      | 覆盖好，可能有频率限制 |
-| skill_crawler   | 3      | 备用方案，较慢但全面   |
+**默认行为**：跳过爬虫，只使用官方和第三方 API，保证数据质量。
 
-当抓取结果中 `isDegraded=true` 时，表示数据来自备用源。查看 `source` 字段了解具体来源。
+### 数据源优先级
+
+**默认降级路径（推荐）**：
+
+```
+official_api → third_party_api → open_search
+（跳过 skill_crawler）
+```
+
+**完整降级路径（需显式启用）**：
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    完整降级路径（CORE_ORDER）                 │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│   │ official_api │───▶│third_party  │───▶│skill_crawler│     │
+│   │   优先级 1   │    │   优先级 2   │    │   优先级 3   │     │
+│   └─────────────┘    └─────────────┘    └─────────────┘     │
+│          │                  │                   │           │
+│          │                  │                   │           │
+│          ▼                  ▼                   ▼           │
+│   ┌─────────────────────────────────────────────────┐       │
+│   │                open_search (优先级 4)            │       │
+│   │         最后降级：Bing / Tavily 开放搜索          │       │
+│   └─────────────────────────────────────────────────┘       │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+| 数据源类型      | 优先级 | 特点               | 配额/限制      |
+| --------------- | ------ | ------------------ | -------------- |
+| official_api    | 1      | 最可靠，官方数据   | 有日配额限制   |
+| third_party_api | 2      | 覆盖好，第三方服务 | 可能有频率限制 |
+| skill_crawler   | 3      | 备用方案，网页爬虫 | 较慢但全面     |
+| open_search     | 4      | 最后降级，开放搜索 | 数据质量中等   |
+
+### 降级结果字段
+
+当调用返回时，检查以下字段了解降级状态：
+
+| 字段               | 描述                                             |
+| ------------------ | ------------------------------------------------ |
+| `source`           | 实际使用的数据源 ID                              |
+| `degradationLevel` | `primary_source` 或 `fallback_source` 或 `error` |
+| `isDegraded`       | 是否使用了备用源                                 |
+| `attempts`         | 所有尝试过的数据源列表                           |
+
+### 冷却机制
+
+数据源失败后会进入冷却期，期间跳过该源：
+
+| 错误类型         | 冷却时间                        |
+| ---------------- | ------------------------------- |
+| 普通错误（限流） | 1分钟 → 5分钟 → 15分钟 → 30分钟 |
+| 严重错误（认证） | 1小时 → 2小时 → 4小时 → 24小时  |
+
+**冷却窗口保持**：如果数据源已在冷却中再次失败，只增加错误计数，不延长冷却时间。
+
+### 开放搜索降级
+
+当所有 API 和爬虫数据源都失败时，系统会自动降级到开放搜索：
+
+- **Bing Shopping Search** — 使用 Bing API 搜索商品页面
+- **Tavily Search** — 使用 Tavily API 作为备选
+
+开放搜索返回的数据质量较低（`dataQuality: "medium"`），建议仅在主数据源不可用时使用。
+
+**配置方式：**
+
+```bash
+# 设置 Bing API Key（免费层 1000 次/月）
+export BING_API_KEY="your-bing-api-key"
+
+# Tavily 通过 OpenClaw 的 tavily 插件配置
+# 配置路径: plugins.entries.tavily.config.webSearch.apiKey
+```
 
 ## 错误处理
 

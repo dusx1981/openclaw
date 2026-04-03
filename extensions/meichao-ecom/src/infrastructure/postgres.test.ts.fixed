@@ -1,0 +1,48 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import pg from "pg";
+const { Pool } = pg;
+
+vi.mock("pg", () => {
+  const mockQuery = vi.fn();
+  const mockEnd = vi.fn();
+  const mockConnect = vi.fn();
+  const mockPool = vi.fn(function () {
+    return {
+      query: mockQuery,
+      end: mockEnd,
+      connect: mockConnect,
+    };
+  });
+  return {
+    default: {
+      Pool: mockPool,
+    },
+  };
+});
+
+describe("postgres", () => {
+  let mockPoolInstance: {
+    query: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+    connect: ReturnType<typeof vi.fn>;
+  };
+  let postgres: typeof import("./storage/postgres.js");
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    postgres = await import("./storage/postgres.js");
+    const pg = await import("pg");
+    mockPoolInstance = new (pg.default.Pool as unknown as ReturnType<
+      typeof vi.fn
+    >)() as unknown as {
+      query: ReturnType<typeof vi.fn>;
+      end: ReturnType<typeof vi.fn>;
+      connect: ReturnType<typeof vi.fn>;
+    };
+  });
+
+  afterEach(async () => {
+    if (postgres && postgres.closePool) {
+      await postgres.closePool();
+    }
+  });

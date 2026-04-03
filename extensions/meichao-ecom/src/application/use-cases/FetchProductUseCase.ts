@@ -1,5 +1,5 @@
 import type { CacheProvider } from "../../domain/ports/CacheProvider.js";
-import type { PlatformGateway } from "../../domain/ports/PlatformGateway.js";
+import type { PlatformGateway, FetchOptions } from "../../domain/ports/PlatformGateway.js";
 import type { ProductRepository } from "../../domain/ports/ProductRepository.js";
 import type {
   ProductData,
@@ -7,6 +7,7 @@ import type {
   Platform,
   DegradationLevel,
   CircuitBreakerState,
+  DegradationConfig,
 } from "../../domain/types.js";
 
 export interface FetchProductUseCaseResult {
@@ -44,6 +45,7 @@ export class FetchProductUseCase {
     platform: Platform,
     platformId: string,
     useCache = true,
+    degradation?: DegradationConfig,
   ): Promise<FetchProductUseCaseResult> {
     const start = Date.now();
     let staleFallback: { data: ProductData; age: number } | null = null;
@@ -88,7 +90,12 @@ export class FetchProductUseCase {
       };
     }
 
-    const result = await this.gateway.fetchProduct(platformId, { useCache });
+    const options: FetchOptions = { useCache };
+    if (degradation) {
+      options.degradation = degradation;
+    }
+
+    const result = await this.gateway.fetchProduct(platformId, options);
 
     if (result.success && result.data) {
       const isFallback = result.degradationLevel === "fallback_source";
@@ -137,11 +144,12 @@ export class FetchProductUseCase {
     platform: Platform,
     platformIds: string[],
     useCache = true,
+    degradation?: DegradationConfig,
   ): Promise<Map<string, FetchProductUseCaseResult>> {
     const results = new Map<string, FetchProductUseCaseResult>();
 
     for (const platformId of platformIds) {
-      const result = await this.execute(platform, platformId, useCache);
+      const result = await this.execute(platform, platformId, useCache, degradation);
       results.set(platformId, result);
     }
 

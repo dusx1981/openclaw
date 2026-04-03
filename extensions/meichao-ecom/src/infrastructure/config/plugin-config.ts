@@ -1,8 +1,14 @@
 import type { RedisConfig } from "../cache/redis.js";
 import type { PostgresConfig } from "../storage/postgres.js";
 
+export interface OpenSearchConfig {
+  bingApiKey?: string;
+  bingCustomConfigId?: string;
+}
+
 let postgresConfig: Partial<PostgresConfig> = {};
 let redisConfig: Partial<RedisConfig> = {};
+let openSearchConfig: Partial<OpenSearchConfig> = {};
 
 export function setPostgresConfig(config: Partial<PostgresConfig> | undefined): void {
   if (config) {
@@ -17,6 +23,14 @@ export function setRedisConfig(config: Partial<RedisConfig> | undefined): void {
     redisConfig = { ...config };
   } else {
     redisConfig = {};
+  }
+}
+
+export function setOpenSearchConfig(config: Partial<OpenSearchConfig> | undefined): void {
+  if (config) {
+    openSearchConfig = { ...config };
+  } else {
+    openSearchConfig = {};
   }
 }
 
@@ -57,4 +71,13 @@ export function getRedisConfig(): Partial<RedisConfig> {
 export function resetConfig(): void {
   postgresConfig = {};
   redisConfig = {};
+  openSearchConfig = {};
+}
+
+export function getOpenSearchConfig(): OpenSearchConfig {
+  return {
+    bingApiKey:
+      openSearchConfig.bingApiKey || process.env.BING_API_KEY || process.env.BING_SEARCH_API_KEY,
+    bingCustomConfigId: openSearchConfig.bingCustomConfigId || process.env.BING_CUSTOM_CONFIG_ID,
+  };
 }
