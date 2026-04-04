@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * 打印各平台商品数据样本
- * 
+ *
  * 用法: bun scripts/print-sample-data.ts
  */
 
@@ -40,15 +40,16 @@ const samples: Record<string, ProductSample[]> = {
       platform: "taobao",
       platformId: "607420172123",
       title: "2024夏季新款法式复古连衣裙女气质显瘦中长款裙子",
-      mainImage: "https://img.alicdn.com/imgextra/i4/2200724907121/O1CN01FHgMXG1DU9xQzJfRz_!!2200724907121.jpg",
+      mainImage:
+        "https://img.alicdn.com/imgextra/i4/2200724907121/O1CN01FHgMXG1DU9xQzJfRz_!!2200724907121.jpg",
       images: [
         "https://img.alicdn.com/imgextra/i4/2200724907121/O1CN01FHgMXG1DU9xQzJfRz_!!2200724907121.jpg",
         "https://img.alicdn.com/imgextra/i2/2200724907121/O1CN01mZcGJH1DU9xMkYdXp_!!2200724907121.jpg",
         "https://img.alicdn.com/imgextra/i3/2200724907121/O1CN01YqKjLO1DU9xQzKvYf_!!2200724907121.jpg",
       ],
       sourceUrl: "https://item.taobao.com/item.htm?id=607420172123",
-      price: 189.00,
-      originalPrice: 299.00,
+      price: 189.0,
+      originalPrice: 299.0,
       currency: "CNY",
       sales: 2856,
       salesUnit: "件",
@@ -78,8 +79,8 @@ const samples: Record<string, ProductSample[]> = {
       title: "爆款夏季短袖T恤女宽松显瘦半袖上衣",
       mainImage: "https://img.alicdn.com/imgextra/i1/123456789/O1CN01xxx_!!123456789.jpg",
       sourceUrl: "https://item.taobao.com/item.htm?id=678901234567",
-      price: 59.90,
-      originalPrice: 99.00,
+      price: 59.9,
+      originalPrice: 99.0,
       currency: "CNY",
       sales: 15234,
       salesUnit: "件",
@@ -107,8 +108,8 @@ const samples: Record<string, ProductSample[]> = {
         "https://m.media-amazon.com/images/I/61JnYUpZRJL._AC_SL1500_.jpg",
       ],
       sourceUrl: "https://www.amazon.com/dp/B08N5WRWNW",
-      price: 249.00,
-      originalPrice: 249.00,
+      price: 249.0,
+      originalPrice: 249.0,
       currency: "USD",
       sales: 0,
       salesUnit: "units",
@@ -165,8 +166,8 @@ const samples: Record<string, ProductSample[]> = {
       title: "【直播间爆款】夏季冰丝阔腿裤女垂感显瘦休闲裤",
       mainImage: "https://p3-aio.ecombdimg.com/obj/ecom-shop/xxx.jpg",
       sourceUrl: "https://haohuo.jinritemai.com//views/product/detail?id=3567890123456789012",
-      price: 79.00,
-      originalPrice: 159.00,
+      price: 79.0,
+      originalPrice: 159.0,
       currency: "CNY",
       sales: 8956,
       salesUnit: "件",
@@ -195,8 +196,8 @@ const samples: Record<string, ProductSample[]> = {
       title: "厂家直销夏季女装T恤批发现货速发货支持代发",
       mainImage: "https://cbu01.alicdn.com/img/ibank/O1CN01xxx_!!2201234567890-0-cib.jpg",
       sourceUrl: "https://detail.1688.com/offer/610123456789.html",
-      price: 15.50,
-      originalPrice: 25.00,
+      price: 15.5,
+      originalPrice: 25.0,
       currency: "CNY",
       sales: 50000,
       salesUnit: "件",
@@ -219,9 +220,9 @@ const samples: Record<string, ProductSample[]> = {
         wholesale: true,
         supportDropship: true,
         priceRanges: [
-          { min: 2, max: 99, price: 18.00 },
-          { min: 100, max: 499, price: 16.00 },
-          { min: 500, max: null, price: 15.50 },
+          { min: 2, max: 99, price: 18.0 },
+          { min: 100, max: 499, price: 16.0 },
+          { min: 500, max: null, price: 15.5 },
         ],
       },
     },
@@ -234,8 +235,8 @@ const samples: Record<string, ProductSample[]> = {
       title: "[Local Seller] iPhone 15 Pro Max 256GB Original Apple Malaysia",
       mainImage: "https://down-my.img.susercontent.com/file/xxx",
       sourceUrl: "https://shopee.com.my/product/123456789.987654321",
-      price: 5299.00,
-      originalPrice: 5999.00,
+      price: 5299.0,
+      originalPrice: 5999.0,
       currency: "MYR",
       sales: 234,
       salesUnit: "units",
@@ -264,8 +265,8 @@ const samples: Record<string, ProductSample[]> = {
       title: "【百亿补贴】品牌正品夏季连衣裙女新款气质显瘦",
       mainImage: "https://img.pddpic.com/mms-banner-img/xxx.png",
       sourceUrl: "https://mobile.yangkeduo.com/goods.html?goods_id=123456789012",
-      price: 89.90,
-      originalPrice: 199.00,
+      price: 89.9,
+      originalPrice: 199.0,
       currency: "CNY",
       sales: 15000,
       salesUnit: "件",
@@ -280,7 +281,7 @@ const samples: Record<string, ProductSample[]> = {
       tags: ["百亿补贴", "品牌正品", "夏季新款"],
       extraData: {
         subsidy: "百亿补贴",
-        groupPrice: 79.90,
+        groupPrice: 79.9,
         groupSize: 2,
         coupons: ["满100减10", "新人专享20元券"],
       },
@@ -294,8 +295,8 @@ const samples: Record<string, ProductSample[]> = {
       title: "Apple MacBook Pro 14英寸 M3芯片 16G 512G 深空灰色",
       mainImage: "https://img14.360buyimg.com/n1/jfs/t1/xxx.jpg",
       sourceUrl: "https://item.jd.com/100012345678.html",
-      price: 12999.00,
-      originalPrice: 14999.00,
+      price: 12999.0,
+      originalPrice: 14999.0,
       currency: "CNY",
       sales: 5678,
       salesUnit: "台",
@@ -355,22 +356,28 @@ const samples: Record<string, ProductSample[]> = {
 function printProduct(product: ProductSample, index: number) {
   console.log(`\n${"─".repeat(60)}`);
   console.log(`  商品 ${index + 1}: ${product.title}`);
-  console.log(`${"─".repeat(60)}`);
+  console.log("─".repeat(60));
   console.log(`\n📦 基本信息`);
   console.log(`   平台: ${product.platform.toUpperCase()}`);
   console.log(`   商品ID: ${product.platformId}`);
-  console.log(`   状态: ${product.status} | 优先级: ${product.priority} | 热门: ${product.isTrending ? "是" : "否"}`);
+  console.log(
+    `   状态: ${product.status} | 优先级: ${product.priority} | 热门: ${product.isTrending ? "是" : "否"}`,
+  );
   console.log(`   链接: ${product.sourceUrl}`);
 
   console.log(`\n💰 价格信息`);
   console.log(`   现价: ${product.currency} ${product.price.toFixed(2)}`);
   if (product.originalPrice && product.originalPrice > product.price) {
     const discount = ((1 - product.price / product.originalPrice) * 100).toFixed(0);
-    console.log(`   原价: ${product.currency} ${product.originalPrice.toFixed(2)} (折扣: ${discount}% off)`);
+    console.log(
+      `   原价: ${product.currency} ${product.originalPrice.toFixed(2)} (折扣: ${discount}% off)`,
+    );
   }
 
   console.log(`\n📊 销售数据`);
-  console.log(`   销量: ${product.sales.toLocaleString()} ${product.salesUnit || ""} / ${product.salesPeriod}`);
+  console.log(
+    `   销量: ${product.sales.toLocaleString()} ${product.salesUnit || ""} / ${product.salesPeriod}`,
+  );
   if (product.rating) {
     console.log(`   评分: ${product.rating}/5.0 (${product.reviewsCount?.toLocaleString()} 评价)`);
   }
@@ -378,7 +385,9 @@ function printProduct(product: ProductSample, index: number) {
   if (product.shopName) {
     console.log(`\n🏪 店铺信息`);
     console.log(`   店铺: ${product.shopName}`);
-    if (product.shopId) console.log(`   店铺ID: ${product.shopId}`);
+    if (product.shopId) {
+      console.log(`   店铺ID: ${product.shopId}`);
+    }
   }
 
   if (product.categoryPath?.length) {
@@ -401,10 +410,20 @@ function printProduct(product: ProductSample, index: number) {
   if (product.extraData && Object.keys(product.extraData).length > 0) {
     console.log(`\n📋 扩展数据`);
     for (const [key, value] of Object.entries(product.extraData)) {
-      if (typeof value === "object") {
+      if (value === undefined) {
+        console.log(`   ${key}: undefined`);
+      } else if (value === null) {
+        console.log(`   ${key}: null`);
+      } else if (typeof value === "object") {
         console.log(`   ${key}: ${JSON.stringify(value)}`);
-      } else {
+      } else if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+      ) {
         console.log(`   ${key}: ${value}`);
+      } else {
+        console.log(`   ${key}: ${JSON.stringify(value)}`);
       }
     }
   }
@@ -428,7 +447,16 @@ function printAllSamples() {
   console.log("║" + " ".repeat(10) + "美潮龙虾 - 各平台商品数据样本" + " ".repeat(16) + "║");
   console.log("╚" + "═".repeat(58) + "╝");
 
-  const platformOrder = ["taobao", "amazon", "douyin", "1688", "shopee", "pinduoduo", "jd", "aliexpress"];
+  const platformOrder = [
+    "taobao",
+    "amazon",
+    "douyin",
+    "1688",
+    "shopee",
+    "pinduoduo",
+    "jd",
+    "aliexpress",
+  ];
 
   for (const platform of platformOrder) {
     const products = samples[platform];

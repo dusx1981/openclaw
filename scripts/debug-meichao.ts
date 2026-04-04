@@ -1,17 +1,15 @@
 #!/usr/bin/env bun
 /**
  * Meichao Ecom 调试脚本
- * 
+ *
  * 用法:
  *   bun scripts/debug-meichao.ts                    # 运行完整流程
  *   bun scripts/debug-meichao.ts --test            # 运行测试场景
  *   bun scripts/debug-meichao.ts --trace           # 启用详细追踪
  */
 
-import { TaobaoAdapter } from "../extensions/meichao-ecom/src/infrastructure/adapters/TaobaoAdapter.js";
 import { AmazonAdapter } from "../extensions/meichao-ecom/src/infrastructure/adapters/AmazonAdapter.js";
-import { DataPipeline } from "../extensions/meichao-ecom/src/application/pipeline/DataPipeline.js";
-import { FetchProductUseCase } from "../extensions/meichao-ecom/src/application/use-cases/FetchProductUseCase.js";
+import { TaobaoAdapter } from "../extensions/meichao-ecom/src/infrastructure/adapters/TaobaoAdapter.js";
 
 const VERBOSE = process.argv.includes("--trace") || process.argv.includes("-v");
 
@@ -20,7 +18,10 @@ function log(stage: string, data?: unknown) {
   if (VERBOSE) {
     console.log(`[${timestamp}] [${stage}]`, data ?? "");
   } else {
-    console.log(`[${stage}]`, typeof data === "object" ? JSON.stringify(data, null, 2) : data ?? "");
+    console.log(
+      `[${stage}]`,
+      typeof data === "object" ? JSON.stringify(data, null, 2) : (data ?? ""),
+    );
   }
 }
 
@@ -179,36 +180,36 @@ async function runTests() {
 
   try {
     const r1 = await debugBasicFetch();
-    results.push({ name: "基础获取", passed: r1.success === true });
-  } catch (e) {
+    results.push({ name: "基础获取", passed: r1.success });
+  } catch {
     results.push({ name: "基础获取", passed: false });
   }
 
   try {
     const r2 = await debugFallbackFlow();
     results.push({ name: "故障转移", passed: r2.every((r) => r.success) });
-  } catch (e) {
+  } catch {
     results.push({ name: "故障转移", passed: false });
   }
 
   try {
     const r3 = await debugConfigOverride();
     results.push({ name: "配置覆盖", passed: r3[0].source === "taobao_crawler" });
-  } catch (e) {
+  } catch {
     results.push({ name: "配置覆盖", passed: false });
   }
 
   try {
     const r4 = await debugAllSourcesDown();
-    results.push({ name: "错误处理", passed: r4.success === false });
-  } catch (e) {
+    results.push({ name: "错误处理", passed: !r4.success });
+  } catch {
     results.push({ name: "错误处理", passed: false });
   }
 
   try {
     const r5 = await debugAmazon();
-    results.push({ name: "Amazon适配器", passed: r5.success === true });
-  } catch (e) {
+    results.push({ name: "Amazon适配器", passed: r5.success });
+  } catch {
     results.push({ name: "Amazon适配器", passed: false });
   }
 
@@ -229,9 +230,9 @@ async function runTests() {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
+  const args = new Set(process.argv.slice(2));
 
-  if (args.includes("--help") || args.includes("-h")) {
+  if (args.has("--help") || args.has("-h")) {
     console.log(`
 Meichao Ecom 调试脚本
 
@@ -253,7 +254,7 @@ Meichao Ecom 调试脚本
 
   console.log("\n🔍 Meichao Ecom 调试工具\n");
 
-  if (args.includes("--test") || args.includes("-t")) {
+  if (args.has("--test") || args.has("-t")) {
     await runTests();
   } else {
     await debugBasicFetch();
