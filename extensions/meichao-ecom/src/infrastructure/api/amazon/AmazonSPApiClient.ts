@@ -17,14 +17,13 @@ export class AmazonSPApiClient {
     this.validateConfig(config);
     this.config = config;
 
-    this.client = new SellingPartner({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.client = new (SellingPartner as any)({
       region: config.region,
       refresh_token: config.refreshToken,
       options: {
-        credentials: {
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-        },
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
         timeout: config.timeout ?? 30000,
       },
     });

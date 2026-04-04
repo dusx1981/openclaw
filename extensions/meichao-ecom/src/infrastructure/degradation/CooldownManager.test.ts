@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { ClassifiedError, DataSourceFailoverReason } from "../../../domain/types.js";
+import type { ClassifiedError, DataSourceFailoverReason } from "../../domain/types.js";
 import { CooldownManager } from "./CooldownManager.js";
 
 function createClassifiedError(

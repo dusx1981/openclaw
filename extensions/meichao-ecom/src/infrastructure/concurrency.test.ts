@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { runConcurrent, runInBatches } from "../../test/helpers/concurrency.js";
-import { CircuitBreaker } from "../circuit-breaker/CircuitBreaker.js";
-import { CooldownManager } from "../degradation/CooldownManager.js";
+import { CircuitBreaker } from "./circuit-breaker/CircuitBreaker.js";
+import { CooldownManager } from "./degradation/CooldownManager.js";
 
 describe("Concurrency Tests", () => {
   describe("CircuitBreaker Concurrency", () => {

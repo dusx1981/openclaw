@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { Chaos } from "../../test/helpers/chaos.js";
 import { runConcurrent } from "../../test/helpers/concurrency.js";
-import { CircuitBreaker } from "../circuit-breaker/CircuitBreaker.js";
-import { CooldownManager } from "../degradation/CooldownManager.js";
+import { CircuitBreaker } from "./circuit-breaker/CircuitBreaker.js";
+import { CooldownManager } from "./degradation/CooldownManager.js";
 
 describe("Degradation System Chaos Tests", () => {
   describe("Random Source Failures", () => {

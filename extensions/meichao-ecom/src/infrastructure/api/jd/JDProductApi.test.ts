@@ -76,7 +76,7 @@ describe("JDProductApi", () => {
 
       const result = await api.getProductDetail("100012345");
 
-      expect(result?.extraData?.commissionInfo?.commission).toBe(30);
+      expect((result?.extraData?.commissionInfo as { commission: number })?.commission).toBe(30);
       expect(result?.extraData?.plusPrice).toBe(279);
     });
   });

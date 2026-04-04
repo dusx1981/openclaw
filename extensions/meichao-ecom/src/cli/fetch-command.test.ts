@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { FetchResult, ProductData } from "../../domain/types.js";
+import type { FetchResult, ProductData } from "../domain/types.js";
 
 const mocks = vi.hoisted(() => ({
   initializePlatform: vi.fn(),
@@ -8,20 +8,20 @@ const mocks = vi.hoisted(() => ({
   getPlatforms: vi.fn().mockReturnValue(["taobao", "amazon"]),
 }));
 
-vi.mock("../../application/bootstrap.js", () => ({
+vi.mock("../application/bootstrap.js", () => ({
   initializePlatform: mocks.initializePlatform,
   isPlatformInitialized: mocks.isPlatformInitialized,
   getFetchProductUseCase: mocks.getFetchProductUseCase,
 }));
 
-vi.mock("../../infrastructure/registry/PlatformRegistry.js", () => ({
+vi.mock("../infrastructure/registry/PlatformRegistry.js", () => ({
   PlatformRegistry: {
     getPlatforms: mocks.getPlatforms,
   },
 }));
 
 describe("fetchCommand", () => {
-  let fetchCommand: typeof import("../fetch-command.js").fetchCommand;
+  let fetchCommand: typeof import("./fetch-command.js").fetchCommand;
   let logs: string[];
   let errors: string[];
   let exitCode: number | undefined;
@@ -74,7 +74,7 @@ describe("fetchCommand", () => {
     mocks.getPlatforms.mockReturnValue(["taobao", "amazon"]);
 
     vi.resetModules();
-    const module = await import("../fetch-command.js");
+    const module = await import("./fetch-command.js");
     fetchCommand = module.fetchCommand;
   });
 

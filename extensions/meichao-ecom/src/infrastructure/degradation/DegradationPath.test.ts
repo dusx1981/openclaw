@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { DataSource, Platform } from "../../../domain/types.js";
+import type { DataSource, Platform } from "../../domain/types.js";
 import { DegradationPath } from "./DegradationPath.js";
 
 function createMockSource(overrides: Partial<DataSource>): DataSource {

@@ -30,12 +30,15 @@ describe("SearchProductsUseCase", () => {
 
     mockRepository = {
       create: vi.fn(),
+      createMany: vi.fn(),
       findById: vi.fn(),
       findByPlatformId: vi.fn(),
       findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn(),
+      updateMany: vi.fn(),
       upsert: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
       count: vi.fn(),
       updatePrice: vi.fn(),
       updateSales: vi.fn(),

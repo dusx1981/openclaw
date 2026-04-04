@@ -31,12 +31,15 @@ describe("DataPipeline", () => {
 
     mockRepository = {
       create: vi.fn(),
+      createMany: vi.fn(),
       findById: vi.fn(),
       findByPlatformId: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       upsert: vi.fn().mockResolvedValue({ id: 1, ...mockProduct }),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
       count: vi.fn(),
       updatePrice: vi.fn(),
       updateSales: vi.fn(),
@@ -48,6 +51,9 @@ describe("DataPipeline", () => {
       getWithFallback: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),
+      getMany: vi.fn(),
+      setMany: vi.fn(),
+      deleteMany: vi.fn(),
       getJson: vi.fn(),
       setJson: vi.fn(),
       getProduct: vi.fn(),
@@ -58,6 +64,7 @@ describe("DataPipeline", () => {
       clear: vi.fn(),
       clearExpired: vi.fn(),
       getStats: vi.fn(),
+      getMetrics: vi.fn(),
     };
 
     const gateways = new Map([["taobao", gateway as never]]);

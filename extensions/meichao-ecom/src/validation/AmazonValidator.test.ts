@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { FetchResult, ProductData, FailoverFetchResult } from "../../domain/types.js";
+import type { FetchResult, ProductData, FailoverFetchResult } from "../domain/types.js";
 import { AmazonValidator } from "./AmazonValidator.js";
 
-vi.mock("../../infrastructure/adapters/AmazonAdapter.js", () => {
+vi.mock("../infrastructure/adapters/AmazonAdapter.js", () => {
   const mockFetchWithFailover = vi.fn();
   const mockFetchProduct = vi.fn();
 
@@ -24,7 +24,7 @@ describe("AmazonValidator", () => {
     vi.clearAllMocks();
     validator = new AmazonValidator();
 
-    const adapter = await import("../../infrastructure/adapters/AmazonAdapter.js");
+    const adapter = await import("../infrastructure/adapters/AmazonAdapter.js");
     mockFetchWithFailover = (adapter.AmazonAdapter.create() as any).fetchWithFailover;
   });
 

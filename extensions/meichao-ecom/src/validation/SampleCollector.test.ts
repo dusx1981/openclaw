@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { ProductData } from "../../domain/types.js";
+import type { ProductData } from "../domain/types.js";
 import { SampleCollector } from "./SampleCollector.js";
 
 describe("SampleCollector", () => {

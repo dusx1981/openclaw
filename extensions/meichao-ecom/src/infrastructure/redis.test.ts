@@ -21,7 +21,7 @@ vi.mock("redis", () => {
 });
 
 describe("redis", () => {
-  let redis: typeof import("../cache/redis.js");
+  let redis: typeof import("./cache/redis.js");
   let mockClient: {
     isOpen: boolean;
     connect: ReturnType<typeof vi.fn>;
@@ -35,9 +35,10 @@ describe("redis", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    redis = await import("../cache/redis.js");
+    redis = await import("./cache/redis.js");
     const redisModule = await import("redis");
-    mockClient = (redisModule.createClient as unknown as ReturnType<typeof vi.fn>)() as unknown as {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockClient = (redisModule.createClient as any)() as {
       isOpen: boolean;
       connect: ReturnType<typeof vi.fn>;
       disconnect: ReturnType<typeof vi.fn>;

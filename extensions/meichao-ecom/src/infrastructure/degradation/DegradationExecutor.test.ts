@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { DataSource, Platform } from "../../../domain/types.js";
+import type { DataSource, Platform } from "../../domain/types.js";
 import { CooldownManager } from "./CooldownManager.js";
 import { DegradationExecutor } from "./DegradationExecutor.js";
 import { DegradationPath } from "./DegradationPath.js";

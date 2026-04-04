@@ -4,7 +4,7 @@ import type {
   ValidationStats,
   DegradationInfo,
   SampleProduct,
-} from "../../validation/PlatformValidator.js";
+} from "../validation/PlatformValidator.js";
 
 const mocks = vi.hoisted(() => ({
   initializePlatform: vi.fn(),
@@ -14,18 +14,18 @@ const mocks = vi.hoisted(() => ({
   validatorGetAllPlatforms: vi.fn().mockReturnValue(["taobao", "amazon"]),
 }));
 
-vi.mock("../../application/bootstrap.js", () => ({
+vi.mock("../application/bootstrap.js", () => ({
   initializePlatform: mocks.initializePlatform,
   isPlatformInitialized: mocks.isPlatformInitialized,
 }));
 
-vi.mock("../../infrastructure/registry/PlatformRegistry.js", () => ({
+vi.mock("../infrastructure/registry/PlatformRegistry.js", () => ({
   PlatformRegistry: {
     getPlatforms: mocks.getPlatforms,
   },
 }));
 
-vi.mock("../../validation/ValidatorRegistry.js", () => ({
+vi.mock("../validation/ValidatorRegistry.js", () => ({
   ValidatorRegistry: {
     get: mocks.validatorGet,
     getAllPlatforms: mocks.validatorGetAllPlatforms,

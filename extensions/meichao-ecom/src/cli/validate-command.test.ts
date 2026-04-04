@@ -7,20 +7,20 @@ const mocks = vi.hoisted(() => ({
   getPlatforms: vi.fn().mockReturnValue(["taobao", "amazon"]),
 }));
 
-vi.mock("../../application/bootstrap.js", () => ({
+vi.mock("../application/bootstrap.js", () => ({
   initializePlatform: mocks.initializePlatform,
   isPlatformInitialized: mocks.isPlatformInitialized,
   getValidatorRegistry: mocks.getValidatorRegistry,
 }));
 
-vi.mock("../../infrastructure/registry/PlatformRegistry.js", () => ({
+vi.mock("../infrastructure/registry/PlatformRegistry.js", () => ({
   PlatformRegistry: {
     getPlatforms: mocks.getPlatforms,
   },
 }));
 
 describe("validateCommand", () => {
-  let validateCommand: typeof import("../validate-command.js").validateCommand;
+  let validateCommand: typeof import("./validate-command.js").validateCommand;
   let logs: string[];
   let errors: string[];
   let exitCode: number | undefined;
@@ -65,7 +65,7 @@ describe("validateCommand", () => {
     mocks.getPlatforms.mockReturnValue(["taobao", "amazon"]);
 
     vi.resetModules();
-    const module = await import("../validate-command.js");
+    const module = await import("./validate-command.js");
     validateCommand = module.validateCommand;
   });
 

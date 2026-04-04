@@ -318,12 +318,15 @@ describe("StoreFilter Benchmark", () => {
   beforeAll(() => {
     mockRepository = {
       create: async () => ({ id: 1 }) as never,
+      createMany: async () => [],
       findById: async () => null,
       findByPlatformId: async () => null,
       findMany: async () => [],
       update: async () => null,
+      updateMany: async () => [],
       upsert: async () => ({ id: 1 }) as never,
       delete: async () => true,
+      deleteMany: async () => true,
       count: async () => 0,
       updatePrice: async () => null,
       updateSales: async () => null,
@@ -369,6 +372,9 @@ describe("CacheFilter Benchmark", () => {
       getWithFallback: async () => null,
       set: async () => {},
       delete: async () => true,
+      getMany: async () => ({}),
+      setMany: async () => {},
+      deleteMany: async () => 0,
       getJson: async () => null,
       setJson: async () => {},
       getProduct: async () => null,
@@ -386,6 +392,7 @@ describe("CacheFilter Benchmark", () => {
         misses: 0,
         expiredEntries: 0,
       }),
+      getMetrics: () => ({ hits: 0, misses: 0, hitRate: 0, averageLatency: 0 }),
     };
 
     filter = new CacheFilter({ cacheProvider: mockCacheProvider });
@@ -441,12 +448,15 @@ describe("DataPipeline Full Pipeline Benchmark", () => {
 
     const mockRepository: ProductRepository = {
       create: async () => ({ id: 1 }) as never,
+      createMany: async () => [],
       findById: async () => null,
       findByPlatformId: async () => null,
       findMany: async () => [],
       update: async () => null,
+      updateMany: async () => [],
       upsert: async () => ({ id: 1 }) as never,
       delete: async () => true,
+      deleteMany: async () => true,
       count: async () => 0,
       updatePrice: async () => null,
       updateSales: async () => null,
@@ -458,6 +468,9 @@ describe("DataPipeline Full Pipeline Benchmark", () => {
       getWithFallback: async () => null,
       set: async () => {},
       delete: async () => true,
+      getMany: async () => ({}),
+      setMany: async () => {},
+      deleteMany: async () => 0,
       getJson: async () => null,
       setJson: async () => {},
       getProduct: async () => null,
@@ -475,6 +488,7 @@ describe("DataPipeline Full Pipeline Benchmark", () => {
         misses: 0,
         expiredEntries: 0,
       }),
+      getMetrics: () => ({ hits: 0, misses: 0, hitRate: 0, averageLatency: 0 }),
     };
 
     const gateways = new Map([["taobao", gateway as never]]);

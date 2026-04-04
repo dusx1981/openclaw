@@ -24,11 +24,11 @@ describe("postgres", () => {
     end: ReturnType<typeof vi.fn>;
     connect: ReturnType<typeof vi.fn>;
   };
-  let postgres: typeof import("../storage/postgres.js");
+  let postgres: typeof import("./storage/postgres.js");
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    postgres = await import("../storage/postgres.js");
+    postgres = await import("./storage/postgres.js");
     const pg = await import("pg");
     mockPoolInstance = new (pg.default.Pool as unknown as ReturnType<
       typeof vi.fn

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ProductData } from "../../domain/types.js";
+import type { ProductData } from "../domain/types.js";
 
 const mocks = vi.hoisted(() => ({
   initializePlatform: vi.fn(),
@@ -8,20 +8,20 @@ const mocks = vi.hoisted(() => ({
   getPlatforms: vi.fn().mockReturnValue(["taobao", "amazon"]),
 }));
 
-vi.mock("../../application/bootstrap.js", () => ({
+vi.mock("../application/bootstrap.js", () => ({
   initializePlatform: mocks.initializePlatform,
   isPlatformInitialized: mocks.isPlatformInitialized,
   getSearchProductsUseCase: mocks.getSearchProductsUseCase,
 }));
 
-vi.mock("../../infrastructure/registry/PlatformRegistry.js", () => ({
+vi.mock("../infrastructure/registry/PlatformRegistry.js", () => ({
   PlatformRegistry: {
     getPlatforms: mocks.getPlatforms,
   },
 }));
 
 describe("createProductSearchTool", () => {
-  let createProductSearchTool: typeof import("../product-search-tool.js").createProductSearchTool;
+  let createProductSearchTool: typeof import("./product-search-tool.js").createProductSearchTool;
   let tool: ReturnType<typeof createProductSearchTool>;
   let logs: string[];
   let errors: string[];
@@ -80,7 +80,7 @@ describe("createProductSearchTool", () => {
 
     const api = { logger: mockLogger } as unknown as Parameters<typeof createProductSearchTool>[0];
 
-    const module = await import("../product-search-tool.js");
+    const module = await import("./product-search-tool.js");
     createProductSearchTool = module.createProductSearchTool;
     tool = createProductSearchTool(api);
   });

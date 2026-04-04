@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ProductCreateInput, ProductUpdateInput } from "../domain/ports/ProductRepository.js";
 
-vi.mock("../storage/postgres.js", () => ({
+vi.mock("./storage/postgres.js", () => ({
   query: vi.fn(),
   queryOne: vi.fn(),
   transaction: vi.fn(),
 }));
 
 describe("PostgresProductRepository", () => {
-  let repo: import("../storage/ProductRepository.js").PostgresProductRepository;
-  let postgres: typeof import("../storage/postgres.js");
+  let repo: import("./storage/ProductRepository.js").PostgresProductRepository;
+  let postgres: typeof import("./storage/postgres.js");
 
   const mockProductRow = {
     id: 1,
@@ -76,8 +76,8 @@ describe("PostgresProductRepository", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    postgres = await import("../storage/postgres.js");
-    const { PostgresProductRepository } = await import("../storage/ProductRepository.js");
+    postgres = await import("./storage/postgres.js");
+    const { PostgresProductRepository } = await import("./storage/ProductRepository.js");
     repo = new PostgresProductRepository();
   });
 

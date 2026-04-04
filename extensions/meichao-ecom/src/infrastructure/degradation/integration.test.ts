@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import type { DataSource, Platform } from "../../../domain/types.js";
-import type { ClassifiedError } from "../../../domain/types.js";
-import { InMemoryDecisionLogger } from "../../logging/DecisionLogger.js";
+import type { DataSource, Platform, ClassifiedError } from "../../domain/types.js";
+import { InMemoryDecisionLogger } from "../logging/DecisionLogger.js";
 import { CooldownManager } from "./CooldownManager.js";
 import { DegradationExecutor } from "./DegradationExecutor.js";
 import { DegradationPath } from "./DegradationPath.js";

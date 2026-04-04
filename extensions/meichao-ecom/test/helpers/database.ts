@@ -1,6 +1,12 @@
 import type { Pool, PoolClient } from "pg";
-import type { StartedTestContainer } from "testcontainers";
 import type { ProductData, Platform } from "../../src/domain/types.js";
+
+// Type stub for testcontainers (optional dependency for integration tests)
+export interface StartedTestContainer {
+  getHost(): string;
+  getMappedPort(port: number): number;
+  stop(): Promise<void>;
+}
 
 export const SKIP_INTEGRATION = process.env.SKIP_INTEGRATION === "1";
 export const ONLY_INTEGRATION = process.env.ONLY_INTEGRATION === "1";
@@ -114,6 +120,7 @@ let redisContainer: StartedTestContainer | null = null;
 let containerPool: Pool | null = null;
 
 export async function startPostgres(): Promise<ContainerInfo> {
+  // @ts-expect-error testcontainers is an optional dependency
   const { GenericContainer } = await import("testcontainers");
 
   const container = await new GenericContainer("postgres:16-alpine")
@@ -161,6 +168,7 @@ export async function startPostgres(): Promise<ContainerInfo> {
 }
 
 export async function startRedis(): Promise<ContainerInfo> {
+  // @ts-expect-error testcontainers is an optional dependency
   const { GenericContainer } = await import("testcontainers");
 
   const container = await new GenericContainer("redis:7-alpine").withExposedPorts(6379).start();

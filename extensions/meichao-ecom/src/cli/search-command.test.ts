@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { SearchProductsUseCaseResult } from "../../application/use-cases/SearchProductsUseCase.js";
-import type { ProductData } from "../../domain/types.js";
+import type { SearchProductsUseCaseResult } from "../application/use-cases/SearchProductsUseCase.js";
+import type { ProductData } from "../domain/types.js";
 
 const mocks = vi.hoisted(() => ({
   initializePlatform: vi.fn(),
@@ -9,20 +9,20 @@ const mocks = vi.hoisted(() => ({
   getPlatforms: vi.fn().mockReturnValue(["taobao", "amazon"]),
 }));
 
-vi.mock("../../application/bootstrap.js", () => ({
+vi.mock("../application/bootstrap.js", () => ({
   initializePlatform: mocks.initializePlatform,
   isPlatformInitialized: mocks.isPlatformInitialized,
   getSearchProductsUseCase: mocks.getSearchProductsUseCase,
 }));
 
-vi.mock("../../infrastructure/registry/PlatformRegistry.js", () => ({
+vi.mock("../infrastructure/registry/PlatformRegistry.js", () => ({
   PlatformRegistry: {
     getPlatforms: mocks.getPlatforms,
   },
 }));
 
 describe("searchCommand", () => {
-  let searchCommand: typeof import("../search-command.js").searchCommand;
+  let searchCommand: typeof import("./search-command.js").searchCommand;
   let logs: string[];
   let errors: string[];
   let exitCode: number | undefined;
@@ -86,7 +86,7 @@ describe("searchCommand", () => {
     mocks.getPlatforms.mockReturnValue(["taobao", "amazon"]);
 
     vi.resetModules();
-    const module = await import("../search-command.js");
+    const module = await import("./search-command.js");
     searchCommand = module.searchCommand;
   });
 

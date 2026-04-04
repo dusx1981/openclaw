@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { FetchResult, ProductData } from "../../domain/types.js";
+import type { FetchResult, ProductData } from "../domain/types.js";
 
 const mocks = vi.hoisted(() => ({
   initializePlatform: vi.fn(),
@@ -8,20 +8,20 @@ const mocks = vi.hoisted(() => ({
   getPlatforms: vi.fn().mockReturnValue(["taobao", "amazon"]),
 }));
 
-vi.mock("../../application/bootstrap.js", () => ({
+vi.mock("../application/bootstrap.js", () => ({
   initializePlatform: mocks.initializePlatform,
   isPlatformInitialized: mocks.isPlatformInitialized,
   getFetchProductUseCase: mocks.getFetchProductUseCase,
 }));
 
-vi.mock("../../infrastructure/registry/PlatformRegistry.js", () => ({
+vi.mock("../infrastructure/registry/PlatformRegistry.js", () => ({
   PlatformRegistry: {
     getPlatforms: mocks.getPlatforms,
   },
 }));
 
 describe("createProductFetchTool", () => {
-  let createProductFetchTool: typeof import("../product-fetch-tool.js").createProductFetchTool;
+  let createProductFetchTool: typeof import("./product-fetch-tool.js").createProductFetchTool;
   let tool: ReturnType<typeof createProductFetchTool>;
   let logs: string[];
   let errors: string[];
@@ -69,7 +69,7 @@ describe("createProductFetchTool", () => {
 
     const api = { logger: mockLogger } as unknown as Parameters<typeof createProductFetchTool>[0];
 
-    const module = await import("../product-fetch-tool.js");
+    const module = await import("./product-fetch-tool.js");
     createProductFetchTool = module.createProductFetchTool;
     tool = createProductFetchTool(api);
   });

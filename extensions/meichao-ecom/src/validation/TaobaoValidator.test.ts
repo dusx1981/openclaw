@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { FetchResult, ProductData, FailoverFetchResult } from "../../domain/types.js";
+import type { FetchResult, ProductData, FailoverFetchResult } from "../domain/types.js";
 import { TaobaoValidator } from "./TaobaoValidator.js";
 
 const mockFetchWithFailover = vi.fn();

@@ -31,12 +31,15 @@ describe("FetchProductUseCase", () => {
 
     mockRepository = {
       create: vi.fn(),
+      createMany: vi.fn(),
       findById: vi.fn(),
       findByPlatformId: vi.fn().mockResolvedValue(null),
       findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       upsert: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
       count: vi.fn(),
       updatePrice: vi.fn(),
       updateSales: vi.fn(),
@@ -48,6 +51,9 @@ describe("FetchProductUseCase", () => {
       getWithFallback: vi.fn().mockResolvedValue(null),
       set: vi.fn(),
       delete: vi.fn(),
+      getMany: vi.fn(),
+      setMany: vi.fn(),
+      deleteMany: vi.fn(),
       getJson: vi.fn(),
       setJson: vi.fn(),
       getProduct: vi.fn().mockResolvedValue(null),
@@ -58,6 +64,7 @@ describe("FetchProductUseCase", () => {
       clear: vi.fn(),
       clearExpired: vi.fn(),
       getStats: vi.fn(),
+      getMetrics: vi.fn(),
     };
 
     useCase = new FetchProductUseCase(gateway, mockRepository, mockCacheProvider);
