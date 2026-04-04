@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import pg from "pg";
 import { Product } from "../../domain/entities/Product.js";
 import type {
   ProductRepository,
@@ -7,6 +8,7 @@ import type {
   ProductFindManyOptions,
 } from "../../domain/ports/ProductRepository.js";
 import { query, queryOne, transaction } from "./postgres.js";
+import { TransactionManager } from "./TransactionManager.js";
 
 interface ProductRow {
   id: number;
@@ -111,6 +113,12 @@ function inputToRow(
 }
 
 export class PostgresProductRepository implements ProductRepository {
+  private transactionManager: TransactionManager;
+
+  constructor(transactionManager?: TransactionManager) {
+    this.transactionManager = transactionManager ?? new TransactionManager();
+  }
+
   async create(data: ProductCreateInput): Promise<Product> {
     const row = inputToRow(data);
     const sql = `
@@ -156,6 +164,67 @@ export class PostgresProductRepository implements ProductRepository {
       throw new Error("Failed to create product");
     }
     return rowToProduct(result);
+  }
+
+  private async createWithClient(
+    client: pg.PoolClient,
+    data: ProductCreateInput,
+  ): Promise<Product> {
+    const row = inputToRow(data);
+    const sql = `
+      INSERT INTO products (
+        platform, platform_id, title, main_image, images, source_url,
+        price, original_price, currency, sales, sales_unit, sales_period,
+        rating, reviews_count, shop_id, shop_name, shop_url,
+        category_id, category_name, category_path, status, priority, is_trending,
+        merchant_id, tags, extra_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      RETURNING *
+    `;
+    const params = [
+      row.platform,
+      row.platform_id,
+      row.title,
+      row.main_image,
+      row.images,
+      row.source_url,
+      row.price,
+      row.original_price,
+      row.currency,
+      row.sales,
+      row.sales_unit,
+      row.sales_period,
+      row.rating,
+      row.reviews_count,
+      row.shop_id,
+      row.shop_name,
+      row.shop_url,
+      row.category_id,
+      row.category_name,
+      row.category_path,
+      row.status,
+      row.priority,
+      row.is_trending,
+      row.merchant_id,
+      row.tags,
+      row.extra_data,
+    ];
+    const result = await client.query<ProductRow>(sql, params);
+    if (result.rows.length === 0) {
+      throw new Error("Failed to create product");
+    }
+    return rowToProduct(result.rows[0]);
+  }
+
+  async createMany(items: ProductCreateInput[]): Promise<Product[]> {
+    return this.transactionManager.runInTransaction(async (client) => {
+      const results: Product[] = [];
+      for (const item of items) {
+        const product = await this.createWithClient(client, item);
+        results.push(product);
+      }
+      return results;
+    });
   }
 
   async findById(id: number): Promise<Product | null> {
@@ -252,6 +321,69 @@ export class PostgresProductRepository implements ProductRepository {
     return row ? rowToProduct(row) : null;
   }
 
+  private async updateWithClient(
+    client: pg.PoolClient,
+    id: number,
+    data: ProductUpdateInput,
+  ): Promise<Product | null> {
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    const fieldMap: Record<keyof ProductUpdateInput, string> = {
+      title: "title",
+      mainImage: "main_image",
+      images: "images",
+      price: "price",
+      originalPrice: "original_price",
+      sales: "sales",
+      salesUnit: "sales_unit",
+      rating: "rating",
+      reviewsCount: "reviews_count",
+      status: "status",
+      priority: "priority",
+      isTrending: "is_trending",
+      tags: "tags",
+      extraData: "extra_data",
+    };
+
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        const columnName = fieldMap[key as keyof ProductUpdateInput];
+        updates.push(`${columnName} = $${paramIndex++}`);
+        params.push(value);
+      }
+    }
+
+    if (updates.length === 0) {
+      const sql = "SELECT * FROM products WHERE id = $1";
+      const result = await client.query<ProductRow>(sql, [id]);
+      return result.rows[0] ? rowToProduct(result.rows[0]) : null;
+    }
+
+    updates.push(`last_seen_at = $${paramIndex++}`);
+    params.push(new Date());
+
+    params.push(id);
+    const sql = `UPDATE products SET ${updates.join(", ")} WHERE id = $${paramIndex} RETURNING *`;
+
+    const result = await client.query<ProductRow>(sql, params);
+    return result.rows[0] ? rowToProduct(result.rows[0]) : null;
+  }
+
+  async updateMany(updates: Array<{ id: number; data: ProductUpdateInput }>): Promise<Product[]> {
+    return this.transactionManager.runInTransaction(async (client) => {
+      const results: Product[] = [];
+      for (const { id, data } of updates) {
+        const product = await this.updateWithClient(client, id, data);
+        if (product) {
+          results.push(product);
+        }
+      }
+      return results;
+    });
+  }
+
   async upsert(data: ProductCreateInput): Promise<Product> {
     const row = inputToRow(data);
     const sql = `
@@ -316,6 +448,25 @@ export class PostgresProductRepository implements ProductRepository {
     const sql = "DELETE FROM products WHERE id = $1";
     const result = await query(sql, [id]);
     return result.length > 0;
+  }
+
+  private async deleteWithClient(client: pg.PoolClient, id: number): Promise<boolean> {
+    const sql = "DELETE FROM products WHERE id = $1";
+    const result = await client.query(sql, [id]);
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async deleteMany(ids: number[]): Promise<boolean> {
+    return this.transactionManager.runInTransaction(async (client) => {
+      let allDeleted = true;
+      for (const id of ids) {
+        const deleted = await this.deleteWithClient(client, id);
+        if (!deleted) {
+          allDeleted = false;
+        }
+      }
+      return allDeleted;
+    });
   }
 
   async count(options?: {
@@ -413,35 +564,224 @@ class TransactionalProductRepository implements ProductRepository {
   constructor(private client: PoolClient) {}
 
   async create(data: ProductCreateInput): Promise<Product> {
-    const repo = new PostgresProductRepository();
-    return repo.create(data);
+    const row = inputToRow(data);
+    const sql = `
+      INSERT INTO products (
+        platform, platform_id, title, main_image, images, source_url,
+        price, original_price, currency, sales, sales_unit, sales_period,
+        rating, reviews_count, shop_id, shop_name, shop_url,
+        category_id, category_name, category_path, status, priority, is_trending,
+        merchant_id, tags, extra_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      RETURNING *
+    `;
+    const params = [
+      row.platform,
+      row.platform_id,
+      row.title,
+      row.main_image,
+      row.images,
+      row.source_url,
+      row.price,
+      row.original_price,
+      row.currency,
+      row.sales,
+      row.sales_unit,
+      row.sales_period,
+      row.rating,
+      row.reviews_count,
+      row.shop_id,
+      row.shop_name,
+      row.shop_url,
+      row.category_id,
+      row.category_name,
+      row.category_path,
+      row.status,
+      row.priority,
+      row.is_trending,
+      row.merchant_id,
+      row.tags,
+      row.extra_data,
+    ];
+    const result = await this.client.query<ProductRow>(sql, params);
+    if (result.rows.length === 0) {
+      throw new Error("Failed to create product");
+    }
+    return rowToProduct(result.rows[0]);
+  }
+
+  async createMany(items: ProductCreateInput[]): Promise<Product[]> {
+    const results: Product[] = [];
+    for (const item of items) {
+      const product = await this.create(item);
+      results.push(product);
+    }
+    return results;
   }
 
   async findById(id: number): Promise<Product | null> {
     const sql = "SELECT * FROM products WHERE id = $1";
-    const result = await this.client.query(sql, [id]);
+    const result = await this.client.query<ProductRow>(sql, [id]);
     return result.rows[0] ? rowToProduct(result.rows[0]) : null;
   }
 
   async findByPlatformId(platform: string, platformId: string): Promise<Product | null> {
     const sql = "SELECT * FROM products WHERE platform = $1 AND platform_id = $2";
-    const result = await this.client.query(sql, [platform, platformId]);
+    const result = await this.client.query<ProductRow>(sql, [platform, platformId]);
     return result.rows[0] ? rowToProduct(result.rows[0]) : null;
   }
 
   async findMany(options: ProductFindManyOptions): Promise<Product[]> {
-    const repo = new PostgresProductRepository();
-    return repo.findMany(options);
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (options.platform) {
+      conditions.push(`platform = $${paramIndex++}`);
+      params.push(options.platform);
+    }
+    if (options.merchantId) {
+      conditions.push(`merchant_id = $${paramIndex++}`);
+      params.push(options.merchantId);
+    }
+    if (options.status) {
+      conditions.push(`status = $${paramIndex++}`);
+      params.push(options.status);
+    }
+    if (options.priority) {
+      conditions.push(`priority = $${paramIndex++}`);
+      params.push(options.priority);
+    }
+    if (options.isTrending !== undefined) {
+      conditions.push(`is_trending = $${paramIndex++}`);
+      params.push(options.isTrending);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    const orderBy = options.orderBy ?? "last_seen_at DESC";
+    const limit = options.limit ?? 100;
+    const offset = options.offset ?? 0;
+
+    const sql = `SELECT * FROM products ${whereClause} ORDER BY ${orderBy} LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+    params.push(limit, offset);
+
+    const result = await this.client.query<ProductRow>(sql, params);
+    return result.rows.map(rowToProduct);
   }
 
   async update(id: number, data: ProductUpdateInput): Promise<Product | null> {
-    const repo = new PostgresProductRepository();
-    return repo.update(id, data);
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    const fieldMap: Record<keyof ProductUpdateInput, string> = {
+      title: "title",
+      mainImage: "main_image",
+      images: "images",
+      price: "price",
+      originalPrice: "original_price",
+      sales: "sales",
+      salesUnit: "sales_unit",
+      rating: "rating",
+      reviewsCount: "reviews_count",
+      status: "status",
+      priority: "priority",
+      isTrending: "is_trending",
+      tags: "tags",
+      extraData: "extra_data",
+    };
+
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        const columnName = fieldMap[key as keyof ProductUpdateInput];
+        updates.push(`${columnName} = $${paramIndex++}`);
+        params.push(value);
+      }
+    }
+
+    if (updates.length === 0) {
+      return this.findById(id);
+    }
+
+    updates.push(`last_seen_at = $${paramIndex++}`);
+    params.push(new Date());
+
+    params.push(id);
+    const sql = `UPDATE products SET ${updates.join(", ")} WHERE id = $${paramIndex} RETURNING *`;
+
+    const result = await this.client.query<ProductRow>(sql, params);
+    return result.rows[0] ? rowToProduct(result.rows[0]) : null;
+  }
+
+  async updateMany(updates: Array<{ id: number; data: ProductUpdateInput }>): Promise<Product[]> {
+    const results: Product[] = [];
+    for (const { id, data } of updates) {
+      const product = await this.update(id, data);
+      if (product) {
+        results.push(product);
+      }
+    }
+    return results;
   }
 
   async upsert(data: ProductCreateInput): Promise<Product> {
-    const repo = new PostgresProductRepository();
-    return repo.upsert(data);
+    const row = inputToRow(data);
+    const sql = `
+      INSERT INTO products (
+        platform, platform_id, title, main_image, images, source_url,
+        price, original_price, currency, sales, sales_unit, sales_period,
+        rating, reviews_count, shop_id, shop_name, shop_url,
+        category_id, category_name, category_path, status, priority, is_trending,
+        merchant_id, tags, extra_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      ON CONFLICT (platform, platform_id) DO UPDATE SET
+        title = EXCLUDED.title,
+        main_image = COALESCE(EXCLUDED.main_image, products.main_image),
+        images = COALESCE(EXCLUDED.images, products.images),
+        price = EXCLUDED.price,
+        original_price = COALESCE(EXCLUDED.original_price, products.original_price),
+        sales = EXCLUDED.sales,
+        rating = COALESCE(EXCLUDED.rating, products.rating),
+        reviews_count = COALESCE(EXCLUDED.reviews_count, products.reviews_count),
+        status = EXCLUDED.status,
+        is_trending = EXCLUDED.is_trending,
+        extra_data = COALESCE(EXCLUDED.extra_data, products.extra_data),
+        last_seen_at = NOW()
+      RETURNING *
+    `;
+    const params = [
+      row.platform,
+      row.platform_id,
+      row.title,
+      row.main_image,
+      row.images,
+      row.source_url,
+      row.price,
+      row.original_price,
+      row.currency,
+      row.sales,
+      row.sales_unit,
+      row.sales_period,
+      row.rating,
+      row.reviews_count,
+      row.shop_id,
+      row.shop_name,
+      row.shop_url,
+      row.category_id,
+      row.category_name,
+      row.category_path,
+      row.status,
+      row.priority,
+      row.is_trending,
+      row.merchant_id,
+      row.tags,
+      row.extra_data,
+    ];
+    const result = await this.client.query<ProductRow>(sql, params);
+    if (result.rows.length === 0) {
+      throw new Error("Failed to upsert product");
+    }
+    return rowToProduct(result.rows[0]);
   }
 
   async delete(id: number): Promise<boolean> {
@@ -450,13 +790,43 @@ class TransactionalProductRepository implements ProductRepository {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
+  async deleteMany(ids: number[]): Promise<boolean> {
+    let allDeleted = true;
+    for (const id of ids) {
+      const deleted = await this.delete(id);
+      if (!deleted) {
+        allDeleted = false;
+      }
+    }
+    return allDeleted;
+  }
+
   async count(options?: {
     platform?: string;
     merchantId?: string;
     status?: string;
   }): Promise<number> {
-    const repo = new PostgresProductRepository();
-    return repo.count(options);
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (options?.platform) {
+      conditions.push(`platform = $${paramIndex++}`);
+      params.push(options.platform);
+    }
+    if (options?.merchantId) {
+      conditions.push(`merchant_id = $${paramIndex++}`);
+      params.push(options.merchantId);
+    }
+    if (options?.status) {
+      conditions.push(`status = $${paramIndex++}`);
+      params.push(options.status);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    const sql = `SELECT COUNT(*)::int as count FROM products ${whereClause}`;
+    const result = await this.client.query<{ count: number }>(sql, params);
+    return result.rows[0]?.count ?? 0;
   }
 
   async updatePrice(
@@ -465,8 +835,17 @@ class TransactionalProductRepository implements ProductRepository {
     price: number,
     originalPrice?: number,
   ): Promise<Product | null> {
-    const repo = new PostgresProductRepository();
-    return repo.updatePrice(platform, platformId, price, originalPrice);
+    const updates = ["price = $3", "price_updated_at = NOW()", "last_seen_at = NOW()"];
+    const params: unknown[] = [platform, platformId, price];
+
+    if (originalPrice !== undefined) {
+      updates.push("original_price = $4");
+      params.push(originalPrice);
+    }
+
+    const sql = `UPDATE products SET ${updates.join(", ")} WHERE platform = $1 AND platform_id = $2 RETURNING *`;
+    const result = await this.client.query<ProductRow>(sql, params);
+    return result.rows[0] ? rowToProduct(result.rows[0]) : null;
   }
 
   async updateSales(
@@ -475,8 +854,17 @@ class TransactionalProductRepository implements ProductRepository {
     sales: number,
     salesUnit?: string,
   ): Promise<Product | null> {
-    const repo = new PostgresProductRepository();
-    return repo.updateSales(platform, platformId, sales, salesUnit);
+    const updates = ["sales = $3", "sales_updated_at = NOW()", "last_seen_at = NOW()"];
+    const params: unknown[] = [platform, platformId, sales];
+
+    if (salesUnit !== undefined) {
+      updates.push("sales_unit = $4");
+      params.push(salesUnit);
+    }
+
+    const sql = `UPDATE products SET ${updates.join(", ")} WHERE platform = $1 AND platform_id = $2 RETURNING *`;
+    const result = await this.client.query<ProductRow>(sql, params);
+    return result.rows[0] ? rowToProduct(result.rows[0]) : null;
   }
 
   async markTrending(
@@ -484,7 +872,13 @@ class TransactionalProductRepository implements ProductRepository {
     platformId: string,
     isTrending: boolean,
   ): Promise<Product | null> {
-    const repo = new PostgresProductRepository();
-    return repo.markTrending(platform, platformId, isTrending);
+    const sql = `
+      UPDATE products 
+      SET is_trending = $3, priority = CASE WHEN $3 THEN 'P0' ELSE priority END, last_seen_at = NOW()
+      WHERE platform = $1 AND platform_id = $2 
+      RETURNING *
+    `;
+    const result = await this.client.query<ProductRow>(sql, [platform, platformId, isTrending]);
+    return result.rows[0] ? rowToProduct(result.rows[0]) : null;
   }
 }

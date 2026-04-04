@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@sinclair/typebox": "0.34.48",
+    "amazon-sp-api": "^1.2.1",
     "pg": "^8.13.0",
     "redis": "^4.7.0"
   },

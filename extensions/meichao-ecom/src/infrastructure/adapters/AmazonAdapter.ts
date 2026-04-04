@@ -1,9 +1,14 @@
 import type { FetchOptions, SearchOptions } from "../../domain/ports/PlatformGateway.js";
 import type { FetchResult, ProductData } from "../../domain/types.js";
 import { DataSource } from "../../domain/value-objects/DataSource.js";
+import { AmazonProductApi } from "../api/amazon/AmazonProductApi.js";
+import { createAmazonClientFromEnv, AmazonSPApiClient } from "../api/amazon/AmazonSPApiClient.js";
 import { BasePlatformAdapter, type AdapterConfig } from "./BasePlatformAdapter.js";
 
 export class AmazonAdapter extends BasePlatformAdapter {
+  private productApi?: AmazonProductApi;
+  private apiClient?: AmazonSPApiClient;
+
   static create(): AmazonAdapter {
     const dataSources = [
       DataSource.create({
@@ -37,6 +42,14 @@ export class AmazonAdapter extends BasePlatformAdapter {
     };
 
     return new AmazonAdapter(adapterConfig);
+  }
+
+  private ensureApiInitialized(): AmazonProductApi {
+    if (!this.productApi) {
+      this.apiClient = createAmazonClientFromEnv();
+      this.productApi = new AmazonProductApi(this.apiClient, this.apiClient.getMarketplaceId());
+    }
+    return this.productApi;
   }
 
   getPlatform(): "amazon" {
@@ -143,9 +156,8 @@ export class AmazonAdapter extends BasePlatformAdapter {
     sourceId: string,
     options?: FetchOptions,
   ): Promise<ProductData> {
-    throw new Error(
-      "Amazon API client not implemented. Configure amazon_sp_api or amazon_product_api data source.",
-    );
+    const api = this.ensureApiInitialized();
+    return await api.getProduct(platformId);
   }
 
   private async doSearchProducts(
@@ -153,7 +165,7 @@ export class AmazonAdapter extends BasePlatformAdapter {
     options?: SearchOptions,
   ): Promise<{ products: ProductData[]; total: number; page: number; pageSize: number }> {
     throw new Error(
-      "Amazon API client not implemented. Configure amazon_sp_api or amazon_product_api data source.",
+      "Amazon product search is not supported by SP-API. Use fetchProduct to retrieve specific products by ASIN.",
     );
   }
 }

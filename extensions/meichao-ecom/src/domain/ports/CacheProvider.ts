@@ -11,6 +11,14 @@ export interface CacheStats {
   hits: number;
   misses: number;
   expiredEntries: number;
+  averageLatency?: number;
+}
+
+export interface CacheMetrics {
+  hits: number;
+  misses: number;
+  hitRate: number;
+  averageLatency: number;
 }
 
 export interface CacheProvider {
@@ -21,6 +29,12 @@ export interface CacheProvider {
   set<T>(key: string, data: T, ttlMs?: number, source?: string): Promise<void>;
 
   delete(key: string): Promise<boolean>;
+
+  getMany<T>(keys: string[]): Promise<Record<string, { data: T; isStale: boolean }>>;
+
+  setMany<T>(entries: Record<string, { data: T; ttlMs?: number; source?: string }>): Promise<void>;
+
+  deleteMany(keys: string[]): Promise<number>;
 
   getJson<T>(key: string): Promise<{ data: T; isStale: boolean } | null>;
 
@@ -63,4 +77,6 @@ export interface CacheProvider {
   clearExpired(): Promise<number>;
 
   getStats(): Promise<CacheStats>;
+
+  getMetrics(): CacheMetrics;
 }

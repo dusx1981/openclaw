@@ -61,6 +61,8 @@ export interface ProductFindManyOptions {
 export interface ProductRepository {
   create(data: ProductCreateInput): Promise<Product>;
 
+  createMany(items: ProductCreateInput[]): Promise<Product[]>;
+
   findById(id: number): Promise<Product | null>;
 
   findByPlatformId(platform: string, platformId: string): Promise<Product | null>;
@@ -69,9 +71,13 @@ export interface ProductRepository {
 
   update(id: number, data: ProductUpdateInput): Promise<Product | null>;
 
+  updateMany(updates: Array<{ id: number; data: ProductUpdateInput }>): Promise<Product[]>;
+
   upsert(data: ProductCreateInput): Promise<Product>;
 
   delete(id: number): Promise<boolean>;
+
+  deleteMany(ids: number[]): Promise<boolean>;
 
   count(options?: { platform?: string; merchantId?: string; status?: string }): Promise<number>;
 

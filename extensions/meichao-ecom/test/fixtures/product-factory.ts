@@ -16,6 +16,11 @@ const PLATFORM_DEFAULTS: Record<Platform, Partial<ProductData>> = {
   pinduoduo: { currency: "CNY", salesPeriod: "month" },
   jd: { currency: "CNY", salesPeriod: "month" },
   aliexpress: { currency: "USD", salesPeriod: "month" },
+  tiktok_shop: { currency: "USD", salesPeriod: "month" },
+  lazada: { currency: "SGD", salesPeriod: "month" },
+  tume: { currency: "CNY", salesPeriod: "month" },
+  tmall: { currency: "CNY", salesPeriod: "month" },
+  taogongchang: { currency: "CNY", salesPeriod: "month" },
 };
 
 export function createProduct(overrides: Partial<ProductData> = {}): ProductData {

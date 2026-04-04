@@ -6,7 +6,12 @@ export type Platform =
   | "shopee"
   | "pinduoduo"
   | "jd"
-  | "aliexpress";
+  | "aliexpress"
+  | "tiktok_shop"
+  | "lazada"
+  | "tume"
+  | "tmall"
+  | "taogongchang";
 
 export type ProductStatus = "active" | "inactive" | "deleted" | "sold_out";
 
@@ -99,6 +104,11 @@ export const PLATFORM_NAMES: Record<Platform, string> = {
   pinduoduo: "拼多多",
   jd: "京东",
   aliexpress: "AliExpress",
+  tiktok_shop: "TikTok Shop",
+  lazada: "Lazada",
+  tume: "TUME",
+  tmall: "天猫",
+  taogongchang: "淘工厂",
 };
 
 export const PLATFORM_CURRENCIES: Record<Platform, string> = {
@@ -110,6 +120,11 @@ export const PLATFORM_CURRENCIES: Record<Platform, string> = {
   pinduoduo: "CNY",
   jd: "CNY",
   aliexpress: "USD",
+  tiktok_shop: "USD",
+  lazada: "SGD",
+  tume: "CNY",
+  tmall: "CNY",
+  taogongchang: "CNY",
 };
 
 export type DegradationLevel =
