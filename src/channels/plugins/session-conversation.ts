@@ -150,12 +150,15 @@ function resolveBundledSessionConversationFallback(params: {
   ) {
     return null;
   }
-
-  const resolveSessionConversation =
-    loadBundledPluginPublicSurfaceModuleSync<BundledSessionKeyModule>({
+  let resolveSessionConversation: BundledSessionKeyModule["resolveSessionConversation"];
+  try {
+    resolveSessionConversation = loadBundledPluginPublicSurfaceModuleSync<BundledSessionKeyModule>({
       dirName,
       artifactBasename: SESSION_KEY_API_ARTIFACT_BASENAME,
-    }).resolveSessionConversation;
+    })?.resolveSessionConversation;
+  } catch {
+    return null;
+  }
   if (typeof resolveSessionConversation !== "function") {
     return null;
   }
