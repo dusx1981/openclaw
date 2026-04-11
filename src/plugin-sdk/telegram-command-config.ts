@@ -1,4 +1,4 @@
-import { getBundledChannelContractSurfaceModule } from "../channels/plugins/contract-surfaces.js";
+import { normalizeLowercaseStringOrEmpty } from "../shared/string-coerce.js";
 
 export type TelegramCustomCommandInput = {
   command?: string | null;
@@ -10,42 +10,103 @@ export type TelegramCustomCommandIssue = {
   field: "command" | "description";
   message: string;
 };
+const TELEGRAM_COMMAND_NAME_PATTERN_VALUE = /^[a-z0-9_]{1,32}$/;
 
-type TelegramCommandConfigContract = {
-  TELEGRAM_COMMAND_NAME_PATTERN: RegExp;
-  normalizeTelegramCommandName: (value: string) => string;
-  normalizeTelegramCommandDescription: (value: string) => string;
-  resolveTelegramCustomCommands: (params: {
-    commands?: TelegramCustomCommandInput[] | null;
-    reservedCommands?: Set<string>;
-    checkReserved?: boolean;
-    checkDuplicates?: boolean;
-  }) => {
-    commands: Array<{ command: string; description: string }>;
-    issues: TelegramCustomCommandIssue[];
-  };
-};
-
-function loadTelegramCommandConfigContract(): TelegramCommandConfigContract {
-  const contract = getBundledChannelContractSurfaceModule<TelegramCommandConfigContract>({
-    pluginId: "telegram",
-    preferredBasename: "contract-surfaces.ts",
-  });
-  if (!contract) {
-    throw new Error("telegram command config contract surface is unavailable");
+function normalizeTelegramCommandNameImpl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
   }
-  return contract;
+  const withoutSlash = trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
+  return normalizeLowercaseStringOrEmpty(withoutSlash).replace(/-/g, "_");
 }
 
-export const TELEGRAM_COMMAND_NAME_PATTERN =
-  loadTelegramCommandConfigContract().TELEGRAM_COMMAND_NAME_PATTERN;
+function normalizeTelegramCommandDescriptionImpl(value: string): string {
+  return value.trim();
+}
+
+function resolveTelegramCustomCommandsImpl(params: {
+  commands?: TelegramCustomCommandInput[] | null;
+  reservedCommands?: Set<string>;
+  checkReserved?: boolean;
+  checkDuplicates?: boolean;
+}): {
+  commands: Array<{ command: string; description: string }>;
+  issues: TelegramCustomCommandIssue[];
+} {
+  const entries = Array.isArray(params.commands) ? params.commands : [];
+  const reserved = params.reservedCommands ?? new Set<string>();
+  const checkReserved = params.checkReserved !== false;
+  const checkDuplicates = params.checkDuplicates !== false;
+  const seen = new Set<string>();
+  const resolved: Array<{ command: string; description: string }> = [];
+  const issues: TelegramCustomCommandIssue[] = [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const normalized = normalizeTelegramCommandNameImpl(entry?.command ?? "");
+    if (!normalized) {
+      issues.push({
+        index,
+        field: "command",
+        message: "Telegram custom command is missing a command name.",
+      });
+      continue;
+    }
+    if (!TELEGRAM_COMMAND_NAME_PATTERN_VALUE.test(normalized)) {
+      issues.push({
+        index,
+        field: "command",
+        message: `Telegram custom command "/${normalized}" is invalid (use a-z, 0-9, underscore; max 32 chars).`,
+      });
+      continue;
+    }
+    if (checkReserved && reserved.has(normalized)) {
+      issues.push({
+        index,
+        field: "command",
+        message: `Telegram custom command "/${normalized}" conflicts with a native command.`,
+      });
+      continue;
+    }
+    if (checkDuplicates && seen.has(normalized)) {
+      issues.push({
+        index,
+        field: "command",
+        message: `Telegram custom command "/${normalized}" is duplicated.`,
+      });
+      continue;
+    }
+    const description = normalizeTelegramCommandDescriptionImpl(entry?.description ?? "");
+    if (!description) {
+      issues.push({
+        index,
+        field: "description",
+        message: `Telegram custom command "/${normalized}" is missing a description.`,
+      });
+      continue;
+    }
+    if (checkDuplicates) {
+      seen.add(normalized);
+    }
+    resolved.push({ command: normalized, description });
+  }
+
+  return { commands: resolved, issues };
+}
+
+export function getTelegramCommandNamePattern(): RegExp {
+  return TELEGRAM_COMMAND_NAME_PATTERN_VALUE;
+}
+
+export const TELEGRAM_COMMAND_NAME_PATTERN = TELEGRAM_COMMAND_NAME_PATTERN_VALUE;
 
 export function normalizeTelegramCommandName(value: string): string {
-  return loadTelegramCommandConfigContract().normalizeTelegramCommandName(value);
+  return normalizeTelegramCommandNameImpl(value);
 }
 
 export function normalizeTelegramCommandDescription(value: string): string {
-  return loadTelegramCommandConfigContract().normalizeTelegramCommandDescription(value);
+  return normalizeTelegramCommandDescriptionImpl(value);
 }
 
 export function resolveTelegramCustomCommands(params: {
@@ -57,5 +118,5 @@ export function resolveTelegramCustomCommands(params: {
   commands: Array<{ command: string; description: string }>;
   issues: TelegramCustomCommandIssue[];
 } {
-  return loadTelegramCommandConfigContract().resolveTelegramCustomCommands(params);
+  return resolveTelegramCustomCommandsImpl(params);
 }

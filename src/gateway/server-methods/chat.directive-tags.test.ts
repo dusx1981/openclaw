@@ -207,7 +207,7 @@ function extractFirstTextBlock(payload: unknown): string | undefined {
 }
 
 function createScopedCliClient(
-  scopes: string[],
+  scopes?: string[],
   client: Partial<{
     id: string;
     mode: string;
@@ -255,6 +255,12 @@ function createChatContext(): Pick<
     removeChatRun: vi.fn(),
     dedupe: new Map(),
     loadGatewayModelCatalog: async () => [
+      {
+        provider: "openai",
+        id: "gpt-5.4",
+        name: "GPT-5.4",
+        input: ["text", "image"],
+      },
       {
         provider: "anthropic",
         id: "claude-opus-4-6",
@@ -1405,6 +1411,25 @@ describe("chat directive tag stripping for non-streaming final payloads", () => 
       "operator.write",
       "operator.pairing",
     ]);
+    expect(mockState.lastDispatchCtx?.CommandBody).toBe("/scopecheck");
+  });
+
+  it("normalizes missing gateway caller scopes to an empty array before dispatch", async () => {
+    createTranscriptFixture("openclaw-chat-send-missing-gateway-client-scopes-");
+    mockState.finalText = "ok";
+    const respond = vi.fn();
+    const context = createChatContext();
+
+    await runNonStreamingChatSend({
+      context,
+      respond,
+      idempotencyKey: "idem-gateway-client-scopes-missing",
+      message: "/scopecheck",
+      client: createScopedCliClient(),
+      expectBroadcast: false,
+    });
+
+    expect(mockState.lastDispatchCtx?.GatewayClientScopes).toEqual([]);
     expect(mockState.lastDispatchCtx?.CommandBody).toBe("/scopecheck");
   });
 

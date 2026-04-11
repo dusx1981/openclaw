@@ -4,8 +4,9 @@ import type { WebSocket } from "ws";
 import { loadConfig } from "../../../config/config.js";
 import {
   getBoundDeviceBootstrapProfile,
+  getDeviceBootstrapTokenProfile,
+  redeemDeviceBootstrapTokenProfile,
   revokeDeviceBootstrapToken,
-  restoreDeviceBootstrapToken,
   verifyDeviceBootstrapToken,
 } from "../../../infra/device-bootstrap.js";
 import {
@@ -34,8 +35,12 @@ import { upsertPresence } from "../../../infra/system-presence.js";
 import { loadVoiceWakeConfig } from "../../../infra/voicewake.js";
 import { rawDataToString } from "../../../infra/ws.js";
 import type { createSubsystemLogger } from "../../../logging/subsystem.js";
-import type { DeviceBootstrapProfile } from "../../../shared/device-bootstrap-profile.js";
+import {
+  resolveBootstrapProfileScopesForRole,
+  type DeviceBootstrapProfile,
+} from "../../../shared/device-bootstrap-profile.js";
 import { roleScopesAllow } from "../../../shared/operator-scope-compat.js";
+import { normalizeOptionalString } from "../../../shared/string-coerce.js";
 import {
   isBrowserOperatorUiClient,
   isGatewayCliClient,
@@ -95,6 +100,7 @@ import {
   incrementPresenceVersion,
   refreshGatewayHealthSnapshot,
 } from "../health-state.js";
+import { resolveSharedGatewaySessionGeneration } from "../ws-shared-generation.js";
 import type { GatewayWsClient } from "../ws-types.js";
 import { resolveConnectAuthDecision, resolveConnectAuthState } from "./auth-context.js";
 import { formatGatewayAuthFailureMessage } from "./auth-messages.js";
@@ -155,6 +161,10 @@ export function attachGatewayWsMessageHandler(params: {
   upgradeReq: IncomingMessage;
   connId: string;
   remoteAddr?: string;
+  remotePort?: number;
+  localAddr?: string;
+  localPort?: number;
+  endpoint?: string;
   forwardedFor?: string;
   realIp?: string;
   requestHost?: string;
@@ -163,6 +173,7 @@ export function attachGatewayWsMessageHandler(params: {
   canvasHostUrl?: string;
   connectNonce: string;
   getResolvedAuth: () => ResolvedGatewayAuth;
+  getRequiredSharedGatewaySessionGeneration: () => string | undefined;
   /** Optional rate limiter for auth brute-force protection. */
   rateLimiter?: AuthRateLimiter;
   /** Browser-origin fallback limiter (loopback is never exempt). */
@@ -190,6 +201,10 @@ export function attachGatewayWsMessageHandler(params: {
     upgradeReq,
     connId,
     remoteAddr,
+    remotePort,
+    localAddr,
+    localPort,
+    endpoint,
     forwardedFor,
     realIp,
     requestHost,
@@ -198,6 +213,7 @@ export function attachGatewayWsMessageHandler(params: {
     canvasHostUrl,
     connectNonce,
     getResolvedAuth,
+    getRequiredSharedGatewaySessionGeneration,
     rateLimiter,
     browserRateLimiter,
     gatewayMethods,
@@ -240,6 +256,7 @@ export function attachGatewayWsMessageHandler(params: {
     trustedProxies,
     allowRealIpFallback,
   });
+  const peerLabel = endpoint ?? remoteAddr ?? "n/a";
 
   // If proxy headers are present but the remote address isn't trusted, don't treat
   // the connection as local. This prevents auth bypass when running behind a reverse
@@ -361,7 +378,7 @@ export function attachGatewayWsMessageHandler(params: {
             });
           } else {
             logWsControl.warn(
-              `invalid handshake conn=${connId} remote=${remoteAddr ?? "?"} fwd=${forwardedFor ?? "n/a"} origin=${requestOrigin ?? "n/a"} host=${requestHost ?? "n/a"} ua=${requestUserAgent ?? "n/a"}`,
+              `invalid handshake conn=${connId} peer=${formatForLog(peerLabel)} remote=${remoteAddr ?? "?"} fwd=${formatForLog(forwardedFor ?? "n/a")} origin=${formatForLog(requestOrigin ?? "n/a")} host=${formatForLog(requestHost ?? "n/a")} ua=${formatForLog(requestUserAgent ?? "n/a")}`,
             );
           }
           const closeReason = truncateCloseReason(handshakeError || "invalid handshake");
@@ -381,6 +398,10 @@ export function attachGatewayWsMessageHandler(params: {
           clientDisplayName: connectParams.client.displayName,
           mode: connectParams.client.mode,
           version: connectParams.client.version,
+          platform: connectParams.client.platform,
+          deviceFamily: connectParams.client.deviceFamily,
+          modelIdentifier: connectParams.client.modelIdentifier,
+          instanceId: connectParams.client.instanceId,
         };
         const markHandshakeFailure = (cause: string, meta?: Record<string, unknown>) => {
           setHandshakeState("failed");
@@ -521,9 +542,17 @@ export function attachGatewayWsMessageHandler(params: {
             authProvided,
             authReason: failedAuth.reason,
             allowTailscale: resolvedAuth.allowTailscale,
+            peer: peerLabel,
+            remoteAddr,
+            remotePort,
+            localAddr,
+            localPort,
+            role,
+            scopeCount: scopes.length,
+            hasDeviceIdentity: Boolean(device),
           });
           logWsControl.warn(
-            `unauthorized conn=${connId} remote=${remoteAddr ?? "?"} client=${clientLabel} ${connectParams.client.mode} v${connectParams.client.version} reason=${failedAuth.reason ?? "unknown"}`,
+            `unauthorized conn=${connId} peer=${formatForLog(peerLabel)} remote=${remoteAddr ?? "?"} client=${formatForLog(clientLabel)} ${connectParams.client.mode} v${formatForLog(connectParams.client.version)} role=${role} scopes=${scopes.length} auth=${authProvided} device=${device ? "yes" : "no"} platform=${formatForLog(connectParams.client.platform)} instance=${formatForLog(connectParams.client.instanceId ?? "n/a")} host=${formatForLog(requestHost ?? "n/a")} origin=${formatForLog(requestOrigin ?? "n/a")} ua=${formatForLog(requestUserAgent ?? "n/a")} reason=${failedAuth.reason ?? "unknown"}`,
           );
           const authMessage = formatGatewayAuthFailureMessage({
             authMode: resolvedAuth.mode,
@@ -652,7 +681,7 @@ export function attachGatewayWsMessageHandler(params: {
             rejectDeviceAuthInvalid("device-signature-stale", "device signature expired");
             return;
           }
-          const providedNonce = typeof device.nonce === "string" ? device.nonce.trim() : "";
+          const providedNonce = normalizeOptionalString(device.nonce) ?? "";
           if (!providedNonce) {
             rejectDeviceAuthInvalid("device-nonce-missing", "device nonce required");
             return;
@@ -715,8 +744,27 @@ export function attachGatewayWsMessageHandler(params: {
           rejectUnauthorized(authResult);
           return;
         }
-        let bootstrapProfile: DeviceBootstrapProfile | null = null;
-        let shouldConsumeBootstrapTokenAfterHello = false;
+        const sharedGatewaySessionGeneration =
+          authMethod === "token" || authMethod === "password"
+            ? resolveSharedGatewaySessionGeneration(resolvedAuth)
+            : undefined;
+        if (authMethod === "token" || authMethod === "password") {
+          const requiredSharedGatewaySessionGeneration =
+            getRequiredSharedGatewaySessionGeneration();
+          if (sharedGatewaySessionGeneration !== requiredSharedGatewaySessionGeneration) {
+            setCloseCause("gateway-auth-rotated", {
+              authGenerationStale: true,
+            });
+            close(4001, "gateway auth changed");
+            return;
+          }
+        }
+        const issuedBootstrapProfile =
+          authMethod === "bootstrap-token" && bootstrapTokenCandidate
+            ? await getDeviceBootstrapTokenProfile({ token: bootstrapTokenCandidate })
+            : null;
+        let boundBootstrapProfile: DeviceBootstrapProfile | null = null;
+        let handoffBootstrapProfile: DeviceBootstrapProfile | null = null;
 
         const trustedProxyAuthOk = isTrustedProxyControlUiOperatorAuth({
           isControlUi,
@@ -729,27 +777,27 @@ export function attachGatewayWsMessageHandler(params: {
           connectParams,
           isLocalClient,
           requestHost,
+          requestOrigin,
           remoteAddress: remoteAddr,
           hasProxyHeaders,
           hasBrowserOriginHeader,
           sharedAuthOk,
           authMethod,
         });
-        const skipPairing =
-          shouldSkipLocalBackendSelfPairing({
-            connectParams,
-            locality: pairingLocality,
-            hasBrowserOriginHeader,
-            sharedAuthOk,
-            authMethod,
-          }) ||
-          shouldSkipControlUiPairing(
-            controlUiAuthPolicy,
-            role,
-            trustedProxyAuthOk,
-            resolvedAuth.mode,
-          );
-        if (device && devicePublicKey && !skipPairing) {
+        const skipLocalBackendSelfPairing = shouldSkipLocalBackendSelfPairing({
+          connectParams,
+          locality: pairingLocality,
+          hasBrowserOriginHeader,
+          sharedAuthOk,
+          authMethod,
+        });
+        const skipControlUiPairingForDevice = shouldSkipControlUiPairing(
+          controlUiAuthPolicy,
+          role,
+          trustedProxyAuthOk,
+          resolvedAuth.mode,
+        );
+        if (device && devicePublicKey) {
           const formatAuditList = (items: string[] | undefined): string => {
             if (!items || items.length === 0) {
               return "<none>";
@@ -789,8 +837,6 @@ export function attachGatewayWsMessageHandler(params: {
             displayName: connectParams.client.displayName,
             clientId: connectParams.client.id,
             clientMode: connectParams.client.mode,
-            role,
-            scopes,
             remoteIp: reportedClientIp,
           };
           const requirePairing = async (
@@ -824,7 +870,7 @@ export function attachGatewayWsMessageHandler(params: {
               });
             };
             if (
-              bootstrapProfile === null &&
+              boundBootstrapProfile === null &&
               authMethod === "bootstrap-token" &&
               reason === "not-paired" &&
               role === "node" &&
@@ -832,7 +878,7 @@ export function attachGatewayWsMessageHandler(params: {
               !existingPairedDevice &&
               bootstrapTokenCandidate
             ) {
-              bootstrapProfile = await getBoundDeviceBootstrapProfile({
+              boundBootstrapProfile = await getBoundDeviceBootstrapProfile({
                 token: bootstrapTokenCandidate,
                 deviceId: device.id,
                 publicKey: devicePublicKey,
@@ -845,17 +891,18 @@ export function attachGatewayWsMessageHandler(params: {
               isWebchat,
               reason,
             });
-            // QR bootstrap onboarding stays single-use, but only consume the bootstrap token
-            // after the hello-ok path succeeds so reconnects can recover from pre-hello failures.
+            // QR bootstrap onboarding stays single-use, but the first node bootstrap handshake
+            // should seed bounded device tokens and only consume the bootstrap token once the
+            // hello-ok path succeeds so reconnects can recover from pre-hello failures.
             const allowSilentBootstrapPairing =
               authMethod === "bootstrap-token" &&
               reason === "not-paired" &&
               role === "node" &&
               scopes.length === 0 &&
               !existingPairedDevice &&
-              bootstrapProfile !== null;
+              boundBootstrapProfile !== null;
             const bootstrapProfileForSilentApproval = allowSilentBootstrapPairing
-              ? bootstrapProfile
+              ? boundBootstrapProfile
               : null;
             const bootstrapPairingRoles = bootstrapProfileForSilentApproval
               ? Array.from(new Set([role, ...bootstrapProfileForSilentApproval.roles]))
@@ -898,8 +945,8 @@ export function attachGatewayWsMessageHandler(params: {
                     callerScopes: scopes,
                   });
               if (approved?.status === "approved") {
-                if (allowSilentBootstrapPairing) {
-                  shouldConsumeBootstrapTokenAfterHello = true;
+                if (bootstrapProfileForSilentApproval) {
+                  handoffBootstrapProfile = bootstrapProfileForSilentApproval;
                 }
                 logGateway.info(
                   `device pairing auto-approved device=${approved.device.deviceId} role=${approved.device.role ?? "unknown"}`,
@@ -965,9 +1012,15 @@ export function attachGatewayWsMessageHandler(params: {
           const paired = await getPairedDevice(device.id);
           const isPaired = paired?.publicKey === devicePublicKey;
           if (!isPaired) {
-            const ok = await requirePairing("not-paired", paired);
-            if (!ok) {
-              return;
+            if (!(skipLocalBackendSelfPairing || skipControlUiPairingForDevice)) {
+              // Initial local backend/control-ui self-pairing can bypass the
+              // pairing prompt, but only while the device is still unpaired.
+              // Once a device is paired, reconnects must stay inside the
+              // approved role/scope baseline below.
+              const ok = await requirePairing("not-paired", paired);
+              if (!ok) {
+                return;
+              }
             }
           } else {
             const claimedPlatform = connectParams.client.platform;
@@ -998,10 +1051,10 @@ export function attachGatewayWsMessageHandler(params: {
               }
             }
             const pairedRoles = listEffectivePairedDeviceRoles(paired);
-            const pairedScopes = Array.isArray(paired.scopes)
-              ? paired.scopes
-              : Array.isArray(paired.approvedScopes)
-                ? paired.approvedScopes
+            const pairedScopes = Array.isArray(paired.approvedScopes)
+              ? paired.approvedScopes
+              : Array.isArray(paired.scopes)
+                ? paired.scopes
                 : [];
             const allowedRoles = new Set(pairedRoles);
             if (allowedRoles.size === 0) {
@@ -1064,14 +1117,19 @@ export function attachGatewayWsMessageHandler(params: {
             issuedAtMs: deviceToken.rotatedAtMs ?? deviceToken.createdAtMs,
           });
         }
-        if (device && bootstrapProfile !== null) {
-          const bootstrapProfileForHello = bootstrapProfile as DeviceBootstrapProfile;
+        if (device && handoffBootstrapProfile) {
+          const bootstrapProfileForHello = handoffBootstrapProfile as DeviceBootstrapProfile;
           for (const bootstrapRole of bootstrapProfileForHello.roles) {
             if (bootstrapDeviceTokens.some((entry) => entry.role === bootstrapRole)) {
               continue;
             }
             const bootstrapRoleScopes =
-              bootstrapRole === "operator" ? bootstrapProfileForHello.scopes : [];
+              bootstrapRole === "operator"
+                ? resolveBootstrapProfileScopesForRole(
+                    bootstrapRole,
+                    bootstrapProfileForHello.scopes,
+                  )
+                : [];
             const extraToken = await ensureDeviceToken({
               deviceId: device.id,
               role: bootstrapRole,
@@ -1197,6 +1255,7 @@ export function attachGatewayWsMessageHandler(params: {
           connect: connectParams,
           connId,
           usesSharedGatewayAuth: authMethod === "token" || authMethod === "password",
+          sharedGatewaySessionGeneration,
           presenceKey,
           clientIp: reportedClientIp,
           canvasHostUrl,
@@ -1212,7 +1271,7 @@ export function attachGatewayWsMessageHandler(params: {
             remoteIp: reportedClientIp,
           });
           const instanceIdRaw = connectParams.client.instanceId;
-          const instanceId = typeof instanceIdRaw === "string" ? instanceIdRaw.trim() : "";
+          const instanceId = normalizeOptionalString(instanceIdRaw) ?? "";
           const nodeIdsForPairing = new Set<string>([nodeSession.nodeId]);
           if (instanceId) {
             nodeIdsForPairing.add(instanceId);
@@ -1256,43 +1315,46 @@ export function attachGatewayWsMessageHandler(params: {
             );
         }
 
-        let consumedBootstrapTokenRecord:
-          | Awaited<ReturnType<typeof revokeDeviceBootstrapToken>>["record"]
-          | undefined;
-        if (shouldConsumeBootstrapTokenAfterHello && bootstrapTokenCandidate && device) {
-          try {
-            const revoked = await revokeDeviceBootstrapToken({
-              token: bootstrapTokenCandidate,
-            });
-            consumedBootstrapTokenRecord = revoked.record;
-            if (!revoked.removed) {
-              logGateway.warn(
-                `bootstrap token revoke skipped after bootstrap handoff device=${device.id}`,
-              );
-            }
-          } catch (err) {
-            logGateway.warn(
-              `bootstrap token consume failed after device-token handoff device=${device.id}: ${formatForLog(err)}`,
-            );
-          }
-        }
         try {
           await sendFrame({ type: "res", id: frame.id, ok: true, payload: helloOk });
         } catch (err) {
-          if (consumedBootstrapTokenRecord) {
-            try {
-              await restoreDeviceBootstrapToken({
-                record: consumedBootstrapTokenRecord,
-              });
-            } catch (restoreErr) {
-              logGateway.warn(
-                `bootstrap token restore failed after hello send error device=${device?.id ?? "unknown"}: ${formatForLog(restoreErr)}`,
-              );
-            }
-          }
           setCloseCause("hello-send-failed", { error: formatForLog(err) });
           close();
           return;
+        }
+        if (authMethod === "bootstrap-token" && bootstrapTokenCandidate && device) {
+          try {
+            if (handoffBootstrapProfile) {
+              const revoked = await revokeDeviceBootstrapToken({
+                token: bootstrapTokenCandidate,
+              });
+              if (!revoked.removed) {
+                logGateway.warn(
+                  `bootstrap token revoke skipped after device-token handoff device=${device.id}`,
+                );
+              }
+            } else if (issuedBootstrapProfile) {
+              const redemption = await redeemDeviceBootstrapTokenProfile({
+                token: bootstrapTokenCandidate,
+                role,
+                scopes,
+              });
+              if (redemption.fullyRedeemed) {
+                const revoked = await revokeDeviceBootstrapToken({
+                  token: bootstrapTokenCandidate,
+                });
+                if (!revoked.removed) {
+                  logGateway.warn(
+                    `bootstrap token revoke skipped after profile redemption device=${device.id}`,
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            logGateway.warn(
+              `bootstrap token post-connect bookkeeping failed device=${device.id}: ${formatForLog(err)}`,
+            );
+          }
         }
         logWs("out", "hello-ok", {
           connId,
@@ -1305,6 +1367,17 @@ export function attachGatewayWsMessageHandler(params: {
           logHealth.error(`post-connect health refresh failed: ${formatError(err)}`),
         );
         return;
+      }
+
+      if (client.usesSharedGatewayAuth) {
+        const requiredSharedGatewaySessionGeneration = getRequiredSharedGatewaySessionGeneration();
+        if (client.sharedGatewaySessionGeneration !== requiredSharedGatewaySessionGeneration) {
+          setCloseCause("gateway-auth-rotated", {
+            authGenerationStale: true,
+          });
+          close(4001, "gateway auth changed");
+          return;
+        }
       }
 
       // After handshake, accept only req frames

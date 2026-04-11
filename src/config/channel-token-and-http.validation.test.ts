@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateConfigObject } from "./config.js";
+import { validateConfigObject } from "./validation.js";
 
 describe("channel token and HTTP validation", () => {
   describe("Slack token fields", () => {
@@ -42,7 +42,6 @@ describe("channel token and HTTP validation", () => {
             botToken: "xoxb-any",
             appToken: "xapp-any",
             userToken: "xoxp-any",
-            // oxlint-disable-next-line typescript/no-explicit-any
             userTokenReadOnly: "no" as any,
           },
         },
@@ -59,7 +58,6 @@ describe("channel token and HTTP validation", () => {
           slack: {
             botToken: "xoxb-any",
             appToken: "xapp-any",
-            // oxlint-disable-next-line typescript/no-explicit-any
             userToken: 123 as any,
           },
         },
