@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import {
   withBundledPluginAllowlistCompat,
   withBundledPluginEnablementCompat,
@@ -46,6 +46,40 @@ export type PluginActivationSnapshot = Pick<
 export type BundledPluginCompatibleActivationInputs = PluginActivationInputs & {
   compatPluginIds: string[];
 };
+
+export function withActivatedPluginIds(params: {
+  config?: OpenClawConfig;
+  pluginIds: readonly string[];
+}): OpenClawConfig | undefined {
+  if (params.pluginIds.length === 0) {
+    return params.config;
+  }
+  const allow = new Set(params.config?.plugins?.allow ?? []);
+  const entries = {
+    ...params.config?.plugins?.entries,
+  };
+  for (const pluginId of params.pluginIds) {
+    const normalized = pluginId.trim();
+    if (!normalized) {
+      continue;
+    }
+    allow.add(normalized);
+    entries[normalized] = {
+      ...entries[normalized],
+      enabled: true,
+    };
+  }
+  const forcePluginsEnabled = params.config?.plugins?.enabled === false;
+  return {
+    ...params.config,
+    plugins: {
+      ...params.config?.plugins,
+      ...(forcePluginsEnabled ? { enabled: true } : {}),
+      ...(allow.size > 0 ? { allow: [...allow] } : {}),
+      entries,
+    },
+  };
+}
 
 export function applyPluginCompatibilityOverrides(params: {
   config?: OpenClawConfig;

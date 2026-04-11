@@ -146,7 +146,7 @@ Browser settings live in `~/.openclaw/openclaw.json`.
   browser: {
     enabled: true, // default: true
     ssrfPolicy: {
-      dangerouslyAllowPrivateNetwork: true, // default trusted-network mode
+      // dangerouslyAllowPrivateNetwork: true, // opt in only for trusted private-network access
       // allowPrivateNetwork: true, // legacy alias
       // hostnameAllowlist: ["*.example.com", "example.com"],
       // allowedHostnames: ["localhost"],
@@ -191,7 +191,7 @@ Notes:
 - `remoteCdpHandshakeTimeoutMs` applies to remote CDP WebSocket reachability checks.
 - Browser navigation/open-tab is SSRF-guarded before navigation and best-effort re-checked on final `http(s)` URL after navigation.
 - In strict SSRF mode, remote CDP endpoint discovery/probes (`cdpUrl`, including `/json/version` lookups) are checked too.
-- `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` defaults to `true` (trusted-network model). Set it to `false` for strict public-only browsing.
+- `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` is disabled by default. Set it to `true` only when you intentionally trust private-network browser access.
 - `browser.ssrfPolicy.allowPrivateNetwork` remains supported as a legacy alias for compatibility.
 - `attachOnly: true` means “never launch a local browser; only attach if it is already running.”
 - `color` + per-profile `color` tint the browser UI so you can see which profile is active.
@@ -366,7 +366,15 @@ Notes:
 Key ideas:
 
 - Browser control is loopback-only; access flows through the Gateway’s auth or node pairing.
-- If browser control is enabled and no auth is configured, OpenClaw auto-generates `gateway.auth.token` on startup and persists it to config.
+- The standalone loopback browser HTTP API uses **shared-secret auth only**:
+  gateway token bearer auth, `x-openclaw-password`, or HTTP Basic auth with the
+  configured gateway password.
+- Tailscale Serve identity headers and `gateway.auth.mode: "trusted-proxy"` do
+  **not** authenticate this standalone loopback browser API.
+- If browser control is enabled and no shared-secret auth is configured, OpenClaw
+  auto-generates `gateway.auth.token` on startup and persists it to config.
+- OpenClaw does **not** auto-generate that token when `gateway.auth.mode` is
+  already `password`, `none`, or `trusted-proxy`.
 - Keep the Gateway and any node hosts on a private network (Tailscale); avoid public exposure.
 - Treat remote CDP URLs/tokens as secrets; prefer env vars or a secrets manager.
 
@@ -500,11 +508,14 @@ Notes:
   - `click` is left-button only (no button overrides or modifiers)
   - `type` does not support `slowly=true`; use `fill` or `press`
   - `press` does not support `delayMs`
-  - `hover`, `scrollIntoView`, `drag`, `select`, and `evaluate` do not support
-    per-call timeout overrides
+  - `hover`, `scrollIntoView`, `drag`, `select`, `fill`, and `evaluate` do not
+    support per-call timeout overrides
   - `select` currently supports a single value only
 - Existing-session `wait --url` supports exact, substring, and glob patterns
   like other browser drivers. `wait --load networkidle` is not supported yet.
+- Existing-session upload hooks require `ref` or `inputRef`, support one file
+  at a time, and do not support CSS `element` targeting.
+- Existing-session dialog hooks do not support timeout overrides.
 - Some features still require the managed browser path, including batch
   actions, PDF export, download interception, and `responsebody`.
 - Existing-session is host-local. If Chrome lives on a different machine or a
@@ -553,10 +564,38 @@ For local integrations only, the Gateway exposes a small loopback HTTP API:
 
 All endpoints accept `?profile=<name>`.
 
-If gateway auth is configured, browser HTTP routes require auth too:
+If shared-secret gateway auth is configured, browser HTTP routes require auth too:
 
 - `Authorization: Bearer <gateway token>`
 - `x-openclaw-password: <gateway password>` or HTTP Basic auth with that password
+
+Notes:
+
+- This standalone loopback browser API does **not** consume trusted-proxy or
+  Tailscale Serve identity headers.
+- If `gateway.auth.mode` is `none` or `trusted-proxy`, these loopback browser
+  routes do not inherit those identity-bearing modes; keep them loopback-only.
+
+### `/act` error contract
+
+`POST /act` uses a structured error response for route-level validation and
+policy failures:
+
+```json
+{ "error": "<message>", "code": "ACT_*" }
+```
+
+Current `code` values:
+
+- `ACT_KIND_REQUIRED` (HTTP 400): `kind` is missing or unrecognized.
+- `ACT_INVALID_REQUEST` (HTTP 400): action payload failed normalization or validation.
+- `ACT_SELECTOR_UNSUPPORTED` (HTTP 400): `selector` was used with an unsupported action kind.
+- `ACT_EVALUATE_DISABLED` (HTTP 403): `evaluate` (or `wait --fn`) is disabled by config.
+- `ACT_TARGET_ID_MISMATCH` (HTTP 403): top-level or batched `targetId` conflicts with request target.
+- `ACT_EXISTING_SESSION_UNSUPPORTED` (HTTP 501): action is not supported for existing-session profiles.
+
+Other runtime failures may still return `{ "error": "<message>" }` without a
+`code` field.
 
 ### Playwright requirement
 

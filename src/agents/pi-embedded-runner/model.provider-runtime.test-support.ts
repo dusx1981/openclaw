@@ -1,3 +1,4 @@
+import { lowercasePreservingWhitespace } from "../../shared/string-coerce.js";
 import type { OpenRouterModelCapabilities } from "./openrouter-model-capabilities.js";
 
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
@@ -7,6 +8,7 @@ const ANTHROPIC_BASE_URL = "https://api.anthropic.com";
 const XAI_BASE_URL = "https://api.x.ai/v1";
 const ZAI_BASE_URL = "https://api.z.ai/api/paas/v4";
 const GOOGLE_GENERATIVE_AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+const GOOGLE_GEMINI_CLI_BASE_URL = "https://cloudcode-pa.googleapis.com";
 const DEFAULT_CONTEXT_WINDOW = 200_000;
 const DEFAULT_MAX_TOKENS = 8192;
 const OPENROUTER_FALLBACK_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
@@ -128,7 +130,7 @@ function buildDynamicModel(
   >,
 ) {
   const modelId = params.modelId.trim();
-  const lower = modelId.toLowerCase();
+  const lower = lowercasePreservingWhitespace(modelId);
   switch (params.provider) {
     case "openrouter": {
       const capabilities = options.getOpenRouterModelCapabilities(modelId);
@@ -323,7 +325,8 @@ function buildDynamicModel(
         maxTokens: patch.maxTokens ?? DEFAULT_CONTEXT_WINDOW,
       });
     }
-    case "anthropic": {
+    case "anthropic":
+    case "claude-cli": {
       if (lower !== "claude-opus-4-6" && lower !== "claude-sonnet-4-6") {
         return undefined;
       }
@@ -336,13 +339,13 @@ function buildDynamicModel(
         template,
         modelId,
         {
-          provider: "anthropic",
+          provider: params.provider,
           api: "anthropic-messages",
           baseUrl: ANTHROPIC_BASE_URL,
           reasoning: true,
         },
         {
-          provider: "anthropic",
+          provider: params.provider,
           api: "anthropic-messages",
           baseUrl: ANTHROPIC_BASE_URL,
           reasoning: true,
@@ -350,6 +353,32 @@ function buildDynamicModel(
           cost: OPENROUTER_FALLBACK_COST,
           contextWindow: DEFAULT_CONTEXT_WINDOW,
           maxTokens: DEFAULT_CONTEXT_WINDOW,
+        },
+      );
+    }
+    case "google-antigravity": {
+      if (lower !== "claude-opus-4-6-thinking") {
+        return undefined;
+      }
+      return cloneTemplate(
+        undefined,
+        modelId,
+        {
+          provider: "google-antigravity",
+          api: "google-gemini-cli",
+          baseUrl: GOOGLE_GEMINI_CLI_BASE_URL,
+          reasoning: true,
+          input: ["text", "image"],
+        },
+        {
+          provider: "google-antigravity",
+          api: "google-gemini-cli",
+          baseUrl: GOOGLE_GEMINI_CLI_BASE_URL,
+          reasoning: true,
+          input: ["text", "image"],
+          cost: OPENROUTER_FALLBACK_COST,
+          contextWindow: DEFAULT_CONTEXT_WINDOW,
+          maxTokens: DEFAULT_MAX_TOKENS,
         },
       );
     }
@@ -393,6 +422,7 @@ export function createProviderRuntimeTestMock(options: ProviderRuntimeTestMockOp
       "openai",
       "xai",
       "anthropic",
+      "google-antigravity",
       "zai",
     ],
   );
@@ -457,6 +487,12 @@ export function createProviderRuntimeTestMock(options: ProviderRuntimeTestMockOp
             },
           )
         : undefined,
+    shouldPreferProviderRuntimeResolvedModel: (params: {
+      provider: string;
+      context: { modelId: string };
+    }) =>
+      params.provider === "openai-codex" &&
+      params.context.modelId.trim().toLowerCase() === "gpt-5.4",
     prepareProviderDynamicModel: async (params: {
       provider: string;
       context: { modelId: string };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateConfigObject } from "./config.js";
+import { validateConfigObject } from "./validation.js";
 
 describe("config schema regressions", () => {
   it("accepts nested telegram groupPolicy overrides", () => {
@@ -43,6 +43,20 @@ describe("config schema regressions", () => {
         defaults: {
           memorySearch: {
             provider: "mistral",
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
+
+  it('accepts memorySearch provider "bedrock"', () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          memorySearch: {
+            provider: "bedrock",
           },
         },
       },
